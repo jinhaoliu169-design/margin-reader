@@ -1,0 +1,106 @@
+{
+  "curious": {
+    "phonetic": {"uk": "ˈkjʊəriəs", "us": "ˈkjʊriəs"},
+    "audio": {
+      "uk": "https://dict.youdao.com/dictvoice?audio=curious&type=1",
+      "us": "https://dict.youdao.com/dictvoice?audio=curious&type=2"
+    },
+    "meanings": [
+      {"pos": "adj.", "text": "好奇的，求知欲强的；稀奇的，不寻常的"}
+    ],
+    "forms": [],
+    "examTags": [],
+    "preview": "Curious describes a strong wish to know or learn something.",
+    "englishDefinitions": [],
+    "phrases": [],
+    "synonyms": [],
+    "examples": [],
+    "etymology": [],
+    "images": []
+  },
+  "edible": {
+    "phonetic": {"uk": "ˈedəb(ə)l", "us": "ˈedəb(ə)l"},
+    "audio": {
+      "uk": "https://dict.youdao.com/dictvoice?audio=edible&type=1",
+      "us": "https://dict.youdao.com/dictvoice?audio=edible&type=2"
+    },
+    "meanings": [
+      {"pos": "adj.", "text": "可食用的"},
+      {"pos": "n.", "text": "食物"}
+    ],
+    "forms": [{"name": "复数", "value": "edibles"}],
+    "examTags": ["CET6", "考研", "IELTS", "TOEFL", "GRE", "GMAT", "SAT"],
+    "preview": "If something is edible, it is safe to eat and not poisonous.",
+    "englishDefinitions": [],
+    "phrases": [
+      {"text": "edible oil", "meaning": "食用油"},
+      {"text": "edible fungus", "meaning": "食用菌；木耳"}
+    ],
+    "synonyms": [],
+    "examples": [],
+    "etymology": [
+      {"lang": "zh", "text": "来自后期拉丁语 edibilis，来自拉丁语 edō（eat）。", "source": "本地简释"}
+    ],
+    "images": []
+  },
+  "wander": {
+    "phonetic": {"uk": "ˈwɒndə(r)", "us": "ˈwɑːndər"},
+    "audio": {
+      "uk": "https://dict.youdao.com/dictvoice?audio=wander&type=1",
+      "us": "https://dict.youdao.com/dictvoice?audio=wander&type=2"
+    },
+    "meanings": [
+      {"pos": "v.", "text": "漫游，游荡，漫步；走神，开小差；蜿蜒曲折"},
+      {"pos": "n.", "text": "游荡，漫步"}
+    ],
+    "forms": [],
+    "examTags": [],
+    "preview": "To wander is to move around without a fixed purpose or direction.",
+    "englishDefinitions": [],
+    "phrases": [],
+    "synonyms": [],
+    "examples": [],
+    "etymology": [],
+    "images": []
+  },
+  "melancholy": {
+    "phonetic": {"uk": "ˈmelənkəli", "us": "ˈmelənkɑːli"},
+    "audio": {
+      "uk": "https://dict.youdao.com/dictvoice?audio=melancholy&type=1",
+      "us": "https://dict.youdao.com/dictvoice?audio=melancholy&type=2"
+    },
+    "meanings": [
+      {"pos": "n.", "text": "抑郁，忧郁"},
+      {"pos": "adj.", "text": "（令人）悲哀的，（令人）沮丧的"}
+    ],
+    "forms": [],
+    "examTags": [],
+    "preview": "Melancholy is a feeling of quiet sadness that may last for some time.",
+    "englishDefinitions": [],
+    "phrases": [],
+    "synonyms": [],
+    "examples": [],
+    "etymology": [],
+    "images": []
+  },
+  "whisper": {
+    "phonetic": {"uk": "ˈwɪspə(r)", "us": "ˈwɪspər"},
+    "audio": {
+      "uk": "https://dict.youdao.com/dictvoice?audio=whisper&type=1",
+      "us": "https://dict.youdao.com/dictvoice?audio=whisper&type=2"
+    },
+    "meanings": [
+      {"pos": "v.", "text": "低声说，耳语；私下说"},
+      {"pos": "n.", "text": "低语，耳语；轻柔的沙沙声"}
+    ],
+    "forms": [],
+    "examTags": [],
+    "preview": "To whisper is to speak very quietly, using breath rather than voice.",
+    "englishDefinitions": [],
+    "phrases": [],
+    "synonyms": [],
+    "examples": [],
+    "etymology": [],
+    "images": []
+  }
+}

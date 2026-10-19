@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: margin-reader
+    runtime: docker
+    plan: starter
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: MARGIN_DATA_DIR
+        value: /var/data
+      - key: MARGIN_HOST
+        value: 0.0.0.0
+      - key: MARGIN_MULTIUSER
+        value: "1"
+      - key: MARGIN_ACCESS_CODE
+        sync: false
+    disk:
+      name: margin-data
+      mountPath: /var/data
+      sizeGB: 1
