@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="页边 MARGIN：620 本英语小说、截图识别、选中标记与有道词典释义。"
+    />
+    <meta name="theme-color" content="#eee7da" />
+    <title>页边 MARGIN · 英语小说精读</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js" defer></script>
+    <script src="app.js" type="module"></script>
+  </head>
+  <body>
+    <svg class="svg-sprite" aria-hidden="true">
+      <symbol id="i-highlight" viewBox="0 0 24 24">
+        <path d="M8.5 4.25h4.8a2 2 0 0 1 2 2v9.1a2 2 0 0 1-2 2H8.5z" />
+        <path d="M8.5 4.25H6.7a1.5 1.5 0 0 0-1.5 1.5v9.3a1.2 1.2 0 0 0 1.2 1.2h2.1" />
+        <path d="M5.8 18.2h8.4" />
+      </symbol>
+      <symbol id="i-books" viewBox="0 0 24 24">
+        <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H11v16H6.5A2.5 2.5 0 0 0 4 21.5z" />
+        <path d="M20 5.5A2.5 2.5 0 0 0 17.5 3H13v16h4.5a2.5 2.5 0 0 1 2.5 2.5z" />
+      </symbol>
+      <symbol id="i-reader" viewBox="0 0 24 24">
+        <path d="M3.5 5.5A2.5 2.5 0 0 1 6 3h12.5v15H6a2.5 2.5 0 0 0-2.5 2.5z" />
+        <path d="M6.5 7h8M6.5 10.5h8M6.5 14h5.5" />
+      </symbol>
+      <symbol id="i-notebook" viewBox="0 0 24 24">
+        <path d="M5 4.5A2.5 2.5 0 0 1 7.5 2H20v18H7.5A2.5 2.5 0 0 0 5 22z" />
+        <path d="M9 6h7M9 10h7M9 14h4" />
+        <path d="M2.5 6.5H5M2.5 11H5M2.5 15.5H5" />
+      </symbol>
+      <symbol id="i-upload" viewBox="0 0 24 24">
+        <path d="M12 16V3.5M7.5 8 12 3.5 16.5 8" />
+        <path d="M4 14.5V19a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 19v-4.5" />
+      </symbol>
+      <symbol id="i-search" viewBox="0 0 24 24">
+        <circle cx="10.5" cy="10.5" r="6.5" />
+        <path d="m15.5 15.5 5 5" />
+      </symbol>
+      <symbol id="i-arrow" viewBox="0 0 24 24">
+        <path d="M4 12h15M14 6l6 6-6 6" />
+      </symbol>
+      <symbol id="i-chevron-left" viewBox="0 0 24 24">
+        <path d="m14.5 5-7 7 7 7" />
+      </symbol>
+      <symbol id="i-chevron-right" viewBox="0 0 24 24">
+        <path d="m9.5 5 7 7-7 7" />
+      </symbol>
+      <symbol id="i-volume" viewBox="0 0 24 24">
+        <path d="M5 9.5h3l4-3.5v12l-4-3.5H5z" />
+        <path d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.8 7.8 0 0 1 0 11" />
+      </symbol>
+      <symbol id="i-bookmark" viewBox="0 0 24 24">
+        <path d="M6 3.5h12v17l-6-3.8-6 3.8z" />
+      </symbol>
+      <symbol id="i-x" viewBox="0 0 24 24">
+        <path d="m5 5 14 14M19 5 5 19" />
+      </symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24">
+        <path d="M12 4v16M4 12h16" />
+      </symbol>
+      <symbol id="i-external" viewBox="0 0 24 24">
+        <path d="M13 5h6v6M19 5l-8 8" />
+        <path d="M17.5 14v4.5A1.5 1.5 0 0 1 16 20H5.5A1.5 1.5 0 0 1 4 18.5V8a1.5 1.5 0 0 1 1.5-1.5H10" />
+      </symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24">
+        <path d="M4.5 6.5h15M9 3.5h6l1 3H8zM7 6.5l.8 14h8.4l.8-14" />
+      </symbol>
+      <symbol id="i-clock" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="8.5" />
+        <path d="M12 7v5.5l3.5 2" />
+      </symbol>
+      <symbol id="i-check" viewBox="0 0 24 24">
+        <path d="m4.5 12.5 5 5 10-11" />
+      </symbol>
+      <symbol id="i-image" viewBox="0 0 24 24">
+        <rect x="3.5" y="4" width="17" height="16" rx="1.5" />
+        <circle cx="9" cy="9" r="1.5" />
+        <path d="m4.5 18 5-5 3 3 2-2 5 4" />
+      </symbol>
+      <symbol id="i-spark" viewBox="0 0 24 24">
+        <path d="M12 3.5c.4 4.8 2.9 7.3 7.5 7.7-4.6.4-7.1 2.9-7.5 7.7-.4-4.8-2.9-7.3-7.5-7.7 4.6-.4 7.1-2.9 7.5-7.7Z" />
+      </symbol>
+      <symbol id="i-sliders" viewBox="0 0 24 24">
+        <path d="M4 7h7M15 7h5M4 17h4M12 17h8" />
+        <circle cx="13" cy="7" r="2" />
+        <circle cx="10" cy="17" r="2" />
+      </symbol>
+      <symbol id="i-translate" viewBox="0 0 24 24">
+        <path d="M4 5h8v7H8l-3 2v-2H4z" />
+        <path d="M12 12h8v6h-2v2l-3-2h-3z" />
+      </symbol>
+      <symbol id="i-user" viewBox="0 0 24 24">
+        <circle cx="12" cy="8" r="4" />
+        <path d="M4.5 21a7.5 7.5 0 0 1 15 0" />
+      </symbol>
+    </svg>
+
+    <div class="app-shell">
+      <header class="app-header">
+        <a class="header-brand" href="#/library" aria-label="页边 MARGIN 首页">
+          <span class="brand-mark">
+            <svg viewBox="0 0 40 40" aria-hidden="true">
+              <path class="brand-pen" d="M21.5 6.5h6.2a2.2 2.2 0 0 1 2.2 2.2v15.1a3.4 3.4 0 0 1-3.4 3.4h-2.4" />
+              <path class="brand-line" d="M11 30.5h15.5" />
+            </svg>
+          </span>
+          <span class="brand-copy">
+            <strong>页边</strong>
+            <small>MARGIN · ENGLISH READING</small>
+          </span>
+        </a>
+
+        <nav class="header-nav" aria-label="主导航">
+          <a class="header-nav-link" href="#/library" data-nav="library">书库</a>
+          <a class="header-nav-link" href="#/reading" data-nav="reading">阅读</a>
+          <a class="header-nav-link" href="#/import" data-nav="import">截图精读</a>
+          <a class="header-nav-link" href="#/wordbook" data-nav="wordbook">生词本</a>
+          <a class="header-nav-link" href="#/me" data-nav="me">我的</a>
+        </nav>
+
+        <div class="header-tools">
+          <form class="global-search" id="global-search" role="search">
+            <svg aria-hidden="true"><use href="#i-search"></use></svg>
+            <input
+              id="global-search-input"
+              type="search"
+              autocomplete="off"
+              placeholder="搜索 620 本小说"
+              aria-label="搜索书名或作者"
+            />
+            <kbd>/</kbd>
+          </form>
+          <button class="header-import" type="button" data-action="open-import" aria-label="导入截图或文本">
+            <svg><use href="#i-upload"></use></svg>
+          </button>
+          <span class="library-count" id="topbar-count">620 本</span>
+        </div>
+        <div class="header-context">
+          <span class="context-dot" aria-hidden="true"></span>
+          <span id="topbar-context">我的阅读室</span>
+        </div>
+      </header>
+
+      <div class="app-workspace">
+        <main id="app-main" tabindex="-1"></main>
+      </div>
+
+      <nav class="mobile-nav" aria-label="移动端导航">
+        <a href="#/library" data-nav="library">
+          <svg><use href="#i-books"></use></svg>
+          <span>书库</span>
+        </a>
+        <a href="#/reading" data-nav="reading">
+          <svg><use href="#i-reader"></use></svg>
+          <span>阅读</span>
+        </a>
+        <a href="#/import" data-nav="import">
+          <svg><use href="#i-upload"></use></svg>
+          <span>导入</span>
+        </a>
+        <a href="#/wordbook" data-nav="wordbook">
+          <svg><use href="#i-notebook"></use></svg>
+          <span>生词</span>
+        </a>
+        <a href="#/me" data-nav="me">
+          <svg><use href="#i-user"></use></svg>
+          <span>我的</span>
+        </a>
+      </nav>
+    </div>
+
+    <div class="selection-toolbar" id="selection-toolbar" role="toolbar" aria-label="选中文字操作" hidden>
+      <div class="selection-main">
+        <button class="highlight-button" type="button" data-action="confirm-highlight" aria-label="标记并查词">
+          <svg><use href="#i-highlight"></use></svg>
+          <span>标记</span>
+        </button>
+        <span class="toolbar-separator" aria-hidden="true"></span>
+        <div class="color-options" role="radiogroup" aria-label="标记颜色">
+          <button class="color-dot is-active" type="button" data-highlight-color="yellow" aria-label="黄色" aria-checked="true" role="radio"></button>
+          <button class="color-dot" type="button" data-highlight-color="green" aria-label="绿色" aria-checked="false" role="radio"></button>
+          <button class="color-dot" type="button" data-highlight-color="pink" aria-label="粉色" aria-checked="false" role="radio"></button>
+          <button class="color-dot" type="button" data-highlight-color="blue" aria-label="蓝色" aria-checked="false" role="radio"></button>
+        </div>
+        <span class="toolbar-separator" aria-hidden="true"></span>
+        <button class="selection-cancel" type="button" data-action="cancel-highlight" aria-label="取消标记">
+          <svg><use href="#i-x"></use></svg>
+          <span>取消</span>
+        </button>
+      </div>
+      <span class="selection-hint" id="selection-hint">标记后查看词义</span>
+    </div>
+
+    <div class="drop-overlay" id="drop-overlay" hidden>
+      <div class="drop-overlay-inner">
+        <div class="drop-icon">
+          <svg><use href="#i-image"></use></svg>
+        </div>
+        <h2>松手，识别这段英文</h2>
+        <p>PNG、JPG、WebP 或 TXT · 图片会留在你的设备上</p>
+      </div>
+    </div>
+
+    <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
+
+    <dialog class="book-dialog" id="book-dialog">
+      <div id="book-dialog-content"></div>
+    </dialog>
+
+    <dialog class="paste-dialog" id="paste-dialog">
+      <button class="reader-icon-button paste-close" type="button" data-action="close-paste" aria-label="关闭">
+        <svg><use href="#i-x"></use></svg>
+      </button>
+      <div class="paste-dialog-head">
+        <span>PASTE TEXT</span>
+        <h2>把英文段落粘贴进来</h2>
+        <p>适合从网页、PDF 或电子书中复制文字。粘贴后会直接进入可编辑的识别结果。</p>
+      </div>
+      <textarea
+        id="paste-textarea"
+        class="paste-textarea"
+        placeholder="Paste the English article or passage here…"
+        spellcheck="false"
+        aria-label="粘贴英文文章"
+      ></textarea>
+      <div class="paste-dialog-actions">
+        <button class="button-secondary" type="button" data-action="close-paste">取消</button>
+        <button class="button-primary" type="button" data-action="commit-paste">
+          读入这段文字
+          <svg><use href="#i-arrow"></use></svg>
+        </button>
+      </div>
+    </dialog>
+
+    <dialog class="metadata-dialog" id="metadata-dialog">
+      <button class="reader-icon-button paste-close" type="button" data-action="close-metadata" aria-label="关闭">
+        <svg><use href="#i-x"></use></svg>
+      </button>
+      <div class="paste-dialog-head">
+        <span>ARTICLE INFO</span>
+        <h2>编辑文章信息</h2>
+        <p>英文标题用于书架和阅读页，中文备注会显示在标题下方，文章来源可以填写书名、网站或你自己的备注。</p>
+      </div>
+      <div class="metadata-fields">
+        <label class="ocr-field-label">
+          <span>英文标题</span>
+          <input class="ocr-meta-input" id="meta-title-input" placeholder="文章英文标题" />
+        </label>
+        <label class="ocr-field-label">
+          <span>中文备注</span>
+          <input class="ocr-meta-input" id="meta-title-zh-input" placeholder="例如：关于阅读与好奇心的文章" />
+        </label>
+        <label class="ocr-field-label">
+          <span>文章来源</span>
+          <input class="ocr-meta-input" id="meta-source-input" placeholder="书名、网站或来源备注" />
+        </label>
+        <label class="ocr-field-label">
+          <span>文章备注</span>
+          <textarea class="ocr-notes-input" id="meta-notes-input" placeholder="记录这篇文章的重点、主题或自己的备注"></textarea>
+        </label>
+      </div>
+      <div class="paste-dialog-actions">
+        <button class="button-secondary" type="button" data-action="close-metadata">取消</button>
+        <button class="button-primary" type="button" data-action="save-import-meta">
+          保存信息
+          <svg><use href="#i-check"></use></svg>
+        </button>
+      </div>
+    </dialog>
+
+    <input
+      id="global-import-file"
+      class="visually-hidden"
+      type="file"
+      accept="image/png,image/jpeg,image/webp,image/gif,.txt,.md,text/plain,text/markdown"
+      multiple
+    />
+  </body>
+</html>

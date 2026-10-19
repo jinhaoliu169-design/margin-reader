@@ -1,0 +1,6 @@
+work/
+outputs/
+.impeccable/
+__pycache__/
+*.pyc
+.env

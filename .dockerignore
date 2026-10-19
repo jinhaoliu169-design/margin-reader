@@ -1,0 +1,8 @@
+work
+outputs
+.impeccable
+.git
+__pycache__
+*.pyc
+PRODUCT.md
+DESIGN.md
