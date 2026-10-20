@@ -57,6 +57,10 @@
       <symbol id="i-bookmark" viewBox="0 0 24 24">
         <path d="M6 3.5h12v17l-6-3.8-6 3.8z" />
       </symbol>
+      <symbol id="i-pin" viewBox="0 0 24 24">
+        <path d="M9 3.5h6l-1 6 3.5 3.5v1.5H6v-1.5L9.5 9.5z" />
+        <path d="M12 15v5.5" />
+      </symbol>
       <symbol id="i-x" viewBox="0 0 24 24">
         <path d="m5 5 14 14M19 5 5 19" />
       </symbol>
@@ -185,6 +189,10 @@
           <svg><use href="#i-search"></use></svg>
           <span class="optional-label">查词</span>
         </button>
+        <button class="selection-translate" type="button" data-action="translate-selection" aria-label="翻译选中的句子">
+          <svg><use href="#i-translate"></use></svg>
+          <span class="optional-label">翻译</span>
+        </button>
         <button class="selection-pronounce" type="button" data-action="pronounce-selection" aria-label="播放发音" title="播放发音">
           <svg><use href="#i-volume"></use></svg>
         </button>
@@ -209,6 +217,10 @@
           <button class="color-dot" type="button" data-highlight-color="blue" aria-label="蓝色" aria-checked="false" role="radio"></button>
         </div>
         <span class="toolbar-separator" aria-hidden="true"></span>
+        <button class="selection-pin" type="button" data-action="toggle-selection-pin" aria-pressed="false" aria-label="固定工具栏位置" title="固定工具栏位置">
+          <svg><use href="#i-pin"></use></svg>
+          <span class="optional-label">固定</span>
+        </button>
         <button class="selection-cancel" type="button" data-action="cancel-highlight" aria-label="取消选择">
           <svg><use href="#i-x"></use></svg>
           <span class="optional-label">取消</span>
@@ -351,6 +363,22 @@
           保存链接
           <svg><use href="#i-check"></use></svg>
         </button>
+      </div>
+    </dialog>
+
+    <dialog class="selection-translation-dialog" id="selection-translation-dialog">
+      <button class="reader-icon-button paste-close" type="button" data-action="close-selection-translation" aria-label="关闭">
+        <svg><use href="#i-x"></use></svg>
+      </button>
+      <div class="selection-translation-head">
+        <span>SELECTION TRANSLATION</span>
+        <h2>这句中文意思</h2>
+      </div>
+      <p class="selection-translation-original" id="selection-translation-original"></p>
+      <div class="selection-translation-result" id="selection-translation-result" aria-live="polite">正在翻译…</div>
+      <div class="selection-translation-actions">
+        <button class="button-secondary" type="button" data-action="copy-selection-translation">复制译文</button>
+        <button class="button-primary" type="button" data-action="close-selection-translation">知道了</button>
       </div>
     </dialog>
 

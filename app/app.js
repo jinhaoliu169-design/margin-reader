@@ -10,6 +10,7 @@ const STORAGE = {
   magazineLinks: "margin_magazine_links_v1",
   readParagraphs: "margin_read_paragraphs_v1",
   readerLayout: "margin_reader_layout_v1",
+  selectionPinned: "margin_selection_pinned_v1",
 };
 
 const PAGE_SIZE = 55;
@@ -239,6 +240,7 @@ const state = {
   query: "",
   visible: 30,
   selectedColor: safeRead(STORAGE.selectedColor, "yellow"),
+  selectionPinned: safeRead(STORAGE.selectionPinned, false) === true,
   selection: null,
   currentBook: null,
   currentText: "",
@@ -2674,8 +2676,25 @@ function offsetWithin(paragraph, node, offset) {
   }
 }
 
+function updateSelectionPinUi() {
+  const button = els.toolbar?.querySelector('[data-action="toggle-selection-pin"]');
+  if (!button) return;
+  button.classList.toggle("is-active", state.selectionPinned);
+  button.setAttribute("aria-pressed", String(state.selectionPinned));
+  const label = button.querySelector("span");
+  if (label) label.textContent = state.selectionPinned ? "已固定" : "固定";
+  els.toolbar.classList.toggle("is-pinned", state.selectionPinned);
+}
+
 function positionSelectionToolbar(rect) {
   els.toolbar.hidden = false;
+  updateSelectionPinUi();
+  if (state.selectionPinned) {
+    els.toolbar.style.left = "";
+    els.toolbar.style.top = "";
+    els.selectionHint.textContent = `查词、朗读或标记「${truncate(state.selection?.query || "", 22)}」`;
+    return;
+  }
   const width = els.toolbar.offsetWidth || 310;
   const estimatedHeight = 66;
   const left = Math.max(12, Math.min(window.innerWidth - width - 12, rect.left + rect.width / 2 - width / 2));
@@ -2685,6 +2704,21 @@ function positionSelectionToolbar(rect) {
   els.toolbar.style.left = `${left}px`;
   els.toolbar.style.top = `${top}px`;
   els.selectionHint.textContent = `查词、朗读或标记「${truncate(state.selection?.query || "", 22)}」`;
+}
+
+function toggleSelectionPin() {
+  state.selectionPinned = !state.selectionPinned;
+  safeWrite(STORAGE.selectionPinned, state.selectionPinned);
+  if (state.selectionPinned) {
+    updateSelectionPinUi();
+    return;
+  }
+  const selection = window.getSelection();
+  if (selection && !selection.isCollapsed && selection.rangeCount) {
+    positionSelectionToolbar(selection.getRangeAt(0).getBoundingClientRect());
+  } else {
+    updateSelectionPinUi();
+  }
 }
 
 function hideSelectionToolbar() {
@@ -2866,6 +2900,49 @@ function readFromSelection() {
   speechState.paused = false;
   speakNextFull(speechState.token);
   showToast("从这一句开始往后朗读。", { icon: "i-volume", duration: 2400 });
+}
+
+let selectionTranslationRequest = 0;
+
+function selectionTextForTranslation(current) {
+  const selected = String(current.text || current.rawText || "").trim();
+  if (!selected) return "";
+  const words = selected.match(/[A-Za-z][A-Za-z'’-]*/g) || [];
+  if (words.length > 1 || /[.!?;；,，:：]/.test(selected)) return selected;
+  return sentenceSpanAt(state.paragraphs[current.paragraph] || "", current.start).text || selected;
+}
+
+async function translateSelection() {
+  const current = readSelectionAction();
+  if (!current || !state.currentBook) return;
+  const text = selectionTextForTranslation(current);
+  if (!text) return;
+  const dialog = document.querySelector("#selection-translation-dialog");
+  const original = document.querySelector("#selection-translation-original");
+  const result = document.querySelector("#selection-translation-result");
+  if (!dialog || !original || !result) return;
+  const requestId = ++selectionTranslationRequest;
+  original.textContent = text;
+  result.classList.remove("is-error");
+  result.textContent = "正在翻译…";
+  if (!dialog.open) dialog.showModal();
+  try {
+    const response = await fetch("/api/translate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({ texts: [text] }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || "翻译暂时不可用。");
+    if (requestId !== selectionTranslationRequest) return;
+    const translation = String((payload.translations || [])[0] || "").trim();
+    if (!translation) throw new Error("翻译服务没有返回内容。");
+    result.textContent = translation;
+  } catch (error) {
+    if (requestId !== selectionTranslationRequest) return;
+    result.classList.add("is-error");
+    result.textContent = `翻译失败：${error.message || "请稍后重试。"}`;
+  }
 }
 
 const IRREGULAR_FORM_BASES = {
@@ -6121,12 +6198,34 @@ function bindEvents() {
       case "read-from-selection":
         readFromSelection();
         break;
+      case "translate-selection":
+        translateSelection();
+        break;
+      case "close-selection-translation": {
+        const dialog = document.querySelector("#selection-translation-dialog");
+        if (dialog) dialog.close();
+        break;
+      }
+      case "copy-selection-translation": {
+        const result = document.querySelector("#selection-translation-result");
+        const text = result?.textContent?.trim() || "";
+        if (text) {
+          navigator.clipboard?.writeText(text).then(
+            () => showToast("译文已复制。", { icon: "i-check" }),
+            () => showToast("复制失败，请手动选择译文。", { icon: "i-x" }),
+          );
+        }
+        break;
+      }
       case "cancel-highlight": {
         const selection = window.getSelection();
         if (selection) selection.removeAllRanges();
         hideSelectionToolbar();
         break;
       }
+      case "toggle-selection-pin":
+        toggleSelectionPin();
+        break;
       case "retry-dict":
         if (state.dictionary?.query) openDictionary(state.dictionary.query, state.dictionary.meta);
         break;
