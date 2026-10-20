@@ -2631,7 +2631,7 @@ function inspectSelection() {
 
   const text = selection.toString().replace(/\s+/g, " ").trim();
   const query = normalizeWord(text);
-  if (!query || text.length > 90 || query.split(/\s+/).length > 8) {
+  if (!query || text.length > 600 || query.split(/\s+/).length > 100) {
     hideSelectionToolbar();
     return;
   }
@@ -2680,7 +2680,8 @@ function positionSelectionToolbar(rect) {
   const estimatedHeight = 66;
   const left = Math.max(12, Math.min(window.innerWidth - width - 12, rect.left + rect.width / 2 - width / 2));
   let top = rect.top - estimatedHeight - 10;
-  if (top < 76) top = rect.bottom + 12;
+  if (top < 76) top = Math.min(window.innerHeight - estimatedHeight - 12, rect.bottom + 12);
+  top = Math.max(76, top);
   els.toolbar.style.left = `${left}px`;
   els.toolbar.style.top = `${top}px`;
   els.selectionHint.textContent = `查词、朗读或标记「${truncate(state.selection?.query || "", 22)}」`;
@@ -2750,6 +2751,13 @@ function dictionaryAudioUrl(word, type = 2) {
 function lookupSelection() {
   const current = readSelectionAction();
   if (!current || !state.currentBook) return;
+  if (current.query.length > 80 || current.query.split(/\s+/).length > 8) {
+    showToast("查词请选中一个词或短句；整句可以用「只读这句」朗读。", {
+      icon: "i-search",
+      duration: 4200,
+    });
+    return;
+  }
   openDictionary(current.query, {
     bookId: state.currentBook.id,
     bookTitle: state.currentBook.title,
