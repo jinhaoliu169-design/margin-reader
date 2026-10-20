@@ -8,6 +8,7 @@ const STORAGE = {
   selectedColor: "margin_selected_color_v1",
   noiseFilter: "margin_noise_filter_v1",
   magazineLinks: "margin_magazine_links_v1",
+  readParagraphs: "margin_read_paragraphs_v1",
 };
 
 const PAGE_SIZE = 55;
@@ -239,7 +240,7 @@ const state = {
   currentBook: null,
   currentText: "",
   readProgressPercent: 0,
-  readingStartedAt: 0,
+  readParagraphs: new Set(),
   paragraphs: [],
   translations: {},
   translationLoading: new Set(),
@@ -641,7 +642,7 @@ async function saveImportToServer(item) {
 async function handleRoute() {
   hideSelectionToolbar();
   if (state.view === "reading" && state.currentBook && !state.readerLoading) {
-    state.readProgressPercent = Math.max(state.readProgressPercent, computeReadingPercent());
+    state.readProgressPercent = computeReadingPercent();
     saveProgress();
   }
   els.toastRegion.replaceChildren();
@@ -1392,7 +1393,6 @@ async function openReader(bookId, options = {}) {
   state.readerError = "";
   state.readerLoading = true;
   state.readProgressPercent = 0;
-  state.readingStartedAt = Date.now();
   state.dictionary = null;
   state.dictionaryTab = "simple";
   state.pendingDictQuery = options.query || "";
@@ -1444,8 +1444,10 @@ async function openReader(bookId, options = {}) {
 
     state.currentText = text;
     state.paragraphs = parseParagraphs(text);
+    state.readParagraphs = loadReadParagraphs(book.id);
     state.paragraphNoise = analyzeParagraphNoise(state.paragraphs, book);
     rebuildParagraphView();
+    state.readProgressPercent = computeReadingPercent();
     remapHighlights(book.id, state.paragraphs);
     const saved = safeRead(STORAGE.progress, {})[book.id];
     const pendingParagraph = state.pendingPageByBook[book.id];
@@ -1476,11 +1478,9 @@ async function openReader(bookId, options = {}) {
       }
     }
     state.page = Math.max(0, Math.min(state.totalPages - 1, requestedPage));
-    state.readProgressPercent = storedProgressPercent(saved);
     state.readerLoading = false;
     renderReaderShell();
     saveProgress();
-    scheduleProgressUpdate();
     prefetchCurrentPageTranslations();
     if (book.id.startsWith("import-")) {
       prefetchAllImportedTranslations();
@@ -2033,10 +2033,15 @@ function readerTextMarkup() {
       const expanded = state.expandedTranslations.has(key);
       const loading = state.translationLoading.has(key);
       const failed = state.translationFailed.has(key);
+      const read = state.readParagraphs.has(index);
       return `
-        <div class="translation-block" data-translation-index="${index}">
+        <div class="translation-block ${read ? "is-read" : ""}" data-translation-index="${index}">
           ${paragraph}
           <div class="translation-controls">
+            <button class="read-check ${read ? "is-read" : ""}" type="button" data-action="toggle-read-paragraph" data-paragraph-index="${index}" aria-pressed="${read}">
+              <svg><use href="#i-check"></use></svg>
+              <span>${read ? "这段已读" : "读完这段"}</span>
+            </button>
             <button class="translation-toggle ${expanded ? "is-open" : ""}" type="button" data-action="toggle-translation" data-paragraph-index="${index}" aria-expanded="${expanded}">
               <svg><use href="#i-translate"></use></svg>
               ${expanded ? "收起译文" : "查看译文"}
@@ -2267,6 +2272,26 @@ async function togglePageTranslation() {
   }
 }
 
+function toggleReadParagraph(index) {
+  if (!state.currentBook) return;
+  if (state.readParagraphs.has(index)) {
+    state.readParagraphs.delete(index);
+  } else {
+    state.readParagraphs.add(index);
+  }
+  persistReadParagraphs();
+  state.readProgressPercent = computeReadingPercent();
+  renderReaderPage();
+  saveProgress();
+  const stats = readParagraphStats();
+  showToast(
+    state.readParagraphs.has(index)
+      ? `这段已读 · ${stats.read} / ${stats.total} 段`
+      : `已取消这段的已读标记 · ${stats.read} / ${stats.total} 段`,
+    { icon: "i-check", duration: 1800 },
+  );
+}
+
 function updateReaderProgressUi() {
   if (state.view !== "reading" || !state.currentBook) return;
   const progress = Math.max(0, Math.min(100, Math.round(state.readProgressPercent || 0)));
@@ -2318,39 +2343,34 @@ function storedProgressPercent(item) {
   return total > 1 ? Math.round((page / total) * 100) : 0;
 }
 
-function computeReadingPercent() {
-  if (!state.currentBook || state.readerLoading) return state.readProgressPercent || 0;
-  const content = document.querySelector("#reader-content");
-  if (!content) return state.readProgressPercent || 0;
-  const rect = content.getBoundingClientRect();
-  const contentTop = rect.top + window.scrollY;
-  const viewportHeight = Math.max(320, window.innerHeight);
-  const headerOffset = 88;
-  const scrolled = Math.max(0, window.scrollY + headerOffset - contentTop);
-  const scrollable = Math.max(1, rect.height - (viewportHeight - headerOffset - 24));
-  const scrollFraction = Math.min(1, scrolled / scrollable);
-  const textLength = Math.max(1, String(state.currentText || "").length);
-  const timeNeeded = Math.max(18, Math.min(60, Math.round(textLength / 1200) * 10));
-  const elapsed = Math.max(0, (Date.now() - state.readingStartedAt) / 1000);
-  const timeFraction = Math.min(1, elapsed / timeNeeded);
-  const pageFraction = Math.max(scrollFraction, timeFraction * 0.6);
-  const overall = ((state.page + pageFraction) / Math.max(1, state.totalPages)) * 100;
-  return Math.max(0, Math.min(100, Math.round(overall)));
+function readableParagraphIndices() {
+  return state.paragraphs
+    .map((text, index) => ({ text: String(text || "").trim(), index }))
+    .filter((item) => item.text && !isChapterHeading(item.text))
+    .map((item) => item.index);
 }
 
-let progressUpdateTimer = 0;
+function readParagraphStats() {
+  const indices = readableParagraphIndices();
+  const read = indices.filter((index) => state.readParagraphs.has(index)).length;
+  return { read, total: indices.length, percent: indices.length ? Math.round((read / indices.length) * 100) : 0 };
+}
 
-function scheduleProgressUpdate() {
-  if (state.view !== "reading" || state.readerLoading || !state.currentBook) return;
-  window.clearTimeout(progressUpdateTimer);
-  progressUpdateTimer = window.setTimeout(() => {
-    const computed = computeReadingPercent();
-    if (computed > state.readProgressPercent) {
-      state.readProgressPercent = computed;
-      updateReaderProgressUi();
-      saveProgress();
-    }
-  }, 140);
+function computeReadingPercent() {
+  return readParagraphStats().percent;
+}
+
+function loadReadParagraphs(bookId) {
+  const stored = safeRead(STORAGE.readParagraphs, {});
+  const values = Array.isArray(stored?.[bookId]) ? stored[bookId] : [];
+  return new Set(values.map((value) => Number(value)).filter(Number.isInteger));
+}
+
+function persistReadParagraphs() {
+  if (!state.currentBook) return;
+  const stored = safeRead(STORAGE.readParagraphs, {});
+  stored[state.currentBook.id] = [...state.readParagraphs].sort((a, b) => a - b);
+  safeWrite(STORAGE.readParagraphs, stored);
 }
 
 function saveProgress() {
@@ -2366,7 +2386,7 @@ function saveProgress() {
     paragraph: currentPageParagraphIndices()[0] ?? 0,
     layout: 2,
     totalPages: state.totalPages,
-    percent: Math.max(storedProgressPercent(existing), state.readProgressPercent || 0),
+    percent: state.readProgressPercent || 0,
     updatedAt: Date.now(),
   };
   safeWrite(STORAGE.progress, progress);
@@ -2377,11 +2397,6 @@ function goToPage(page) {
   const next = Math.max(0, Math.min(state.totalPages - 1, page));
   if (next === state.page) return;
   state.page = next;
-  state.readProgressPercent = Math.max(
-    state.readProgressPercent,
-    Math.round((next / Math.max(1, state.totalPages)) * 100),
-  );
-  state.readingStartedAt = Date.now();
   state.expandedTranslations.clear();
   renderReaderPage();
   prefetchCurrentPageTranslations();
@@ -4189,6 +4204,36 @@ function removeWord(wordId) {
   if (target) showToast(`已移除「${target.word}」`, { icon: "i-trash" });
 }
 
+function deleteReadingRecord(bookId) {
+  if (!bookId) return;
+  const progress = safeRead(STORAGE.progress, {});
+  const readMap = safeRead(STORAGE.readParagraphs, {});
+  const record = progress[bookId];
+  const readList = Array.isArray(readMap[bookId]) ? [...readMap[bookId]] : null;
+  if (!record && !readList) return;
+  delete progress[bookId];
+  delete readMap[bookId];
+  safeWrite(STORAGE.progress, progress);
+  safeWrite(STORAGE.readParagraphs, readMap);
+  renderMyPage();
+  showToast("已删除这条阅读记录。", {
+    icon: "i-trash",
+    actionLabel: "撤销",
+    onAction: () => {
+      const restoredProgress = safeRead(STORAGE.progress, {});
+      if (record) restoredProgress[bookId] = record;
+      safeWrite(STORAGE.progress, restoredProgress);
+      if (readList) {
+        const restoredRead = safeRead(STORAGE.readParagraphs, {});
+        restoredRead[bookId] = readList;
+        safeWrite(STORAGE.readParagraphs, restoredRead);
+      }
+      renderMyPage();
+      showToast("阅读记录已恢复。", { icon: "i-check" });
+    },
+  });
+}
+
 function exportUserData() {
   const payload = {
     product: "Eleven 精读书库",
@@ -4278,17 +4323,20 @@ function renderMyPage() {
               ? `<div class="my-reading-list">${readingRows
                   .slice(0, 7)
                   .map((item) => {
-                    const percent = Math.max(1, storedProgressPercent(item));
+                    const percent = Math.max(0, storedProgressPercent(item));
                     return `
-                      <button class="my-reading-row" type="button" data-action="open-reading-record" data-book-id="${escapeHtml(item.bookId)}">
+                      <div class="my-reading-row" role="button" tabindex="0" data-action="open-reading-record" data-book-id="${escapeHtml(item.bookId)}">
                         <span class="my-reading-copy">
                           <strong>${escapeHtml(item.book.title)}</strong>
                           <small>${escapeHtml(item.book.titleZh || item.book.author || "")}</small>
                         </span>
                         <span class="my-reading-progress"><i style="width:${percent}%"></i></span>
                         <b>${percent}%</b>
-                        <svg><use href="#i-arrow"></use></svg>
-                      </button>
+                        <svg class="my-reading-arrow"><use href="#i-arrow"></use></svg>
+                        <button class="my-reading-delete" type="button" data-action="delete-reading-record" data-book-id="${escapeHtml(item.bookId)}" aria-label="删除这条阅读记录" title="删除这条阅读记录">
+                          <svg><use href="#i-trash"></use></svg>
+                        </button>
+                      </div>
                     `;
                   })
                   .join("")}</div>`
@@ -5297,8 +5345,6 @@ function importForBook(bookId) {
 
 function bindEvents() {
   window.addEventListener("hashchange", handleRoute);
-  window.addEventListener("scroll", scheduleProgressUpdate, { passive: true });
-  window.setInterval(scheduleProgressUpdate, 5000);
 
   document.addEventListener("click", (event) => {
     const colorButton = event.target.closest("[data-highlight-color]");
@@ -5502,6 +5548,9 @@ function bindEvents() {
         }
         break;
       }
+      case "delete-reading-record":
+        deleteReadingRecord(actionButton.dataset.bookId);
+        break;
       case "trash-import":
         moveImportToTrash(actionButton.dataset.importId).catch((error) =>
           showToast(error.message, { icon: "i-x" }),
@@ -5546,6 +5595,9 @@ function bindEvents() {
         break;
       case "toggle-translation":
         toggleParagraphTranslation(Number(actionButton.dataset.paragraphIndex));
+        break;
+      case "toggle-read-paragraph":
+        toggleReadParagraph(Number(actionButton.dataset.paragraphIndex));
         break;
       case "retry-translation": {
         const index = Number(actionButton.dataset.paragraphIndex);
@@ -5866,6 +5918,18 @@ function bindEvents() {
       if (state.view === "reading") {
         const panel = document.querySelector("#dictionary-panel");
         if (panel?.classList.contains("is-open") && window.innerWidth <= 860) panel.classList.remove("is-open");
+      }
+    }
+    if (
+      (event.key === "Enter" || event.key === " ") &&
+      event.target.closest?.(".my-reading-row") &&
+      !event.target.closest("button")
+    ) {
+      event.preventDefault();
+      const bookId = event.target.closest(".my-reading-row")?.dataset.bookId;
+      if (bookId) {
+        state.startContentForBookId = bookId;
+        navigate(`#/read/${encodeURIComponent(bookId)}`);
       }
     }
     if (state.view === "reading" && !typing && !event.metaKey && !event.ctrlKey && !event.altKey) {

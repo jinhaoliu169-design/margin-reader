@@ -2283,7 +2283,44 @@ svg {
 
 .translation-controls {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.read-check {
+  display: inline-flex;
+  height: 23px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  color: var(--faint);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.read-check:hover {
+  color: var(--moss);
+  border-color: var(--line);
+  background: var(--paper);
+}
+
+.read-check.is-read {
+  color: var(--moss);
+  border-color: rgba(64, 91, 75, 0.28);
+  background: rgba(111, 143, 99, 0.11);
+}
+
+.read-check svg {
+  width: 12px;
+  height: 12px;
+}
+
+.translation-block.is-read {
+  border-left: 2px solid rgba(111, 143, 99, 0.35);
+  padding-left: 8px;
 }
 
 .translation-toggle {
@@ -4914,13 +4951,19 @@ svg {
 
 .my-reading-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 75px 35px 15px;
+  grid-template-columns: minmax(0, 1fr) 75px 35px 15px 28px;
   gap: 10px;
   align-items: center;
   width: 100%;
   padding: 13px 2px;
   border-bottom: 1px solid var(--line);
   text-align: left;
+  cursor: pointer;
+}
+
+.my-reading-row:focus-visible {
+  outline: 2px solid var(--moss);
+  outline-offset: -2px;
 }
 
 .my-reading-row:hover {
@@ -4947,9 +4990,11 @@ svg {
 
 .my-reading-copy small {
   margin-top: 4px;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.45;
+  color: var(--ink-soft);
+  font-family: var(--serif);
+  font-size: 13px;
+  font-weight: 520;
+  line-height: 1.4;
 }
 
 .my-reading-progress {
@@ -4975,6 +5020,25 @@ svg {
   width: 13px;
   height: 13px;
   color: var(--faint);
+}
+
+.my-reading-delete {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+  color: var(--faint);
+  border-radius: 4px;
+}
+
+.my-reading-delete:hover {
+  color: var(--clay);
+  background: rgba(163, 72, 53, 0.08);
+}
+
+.my-reading-delete svg {
+  width: 13px;
+  height: 13px;
 }
 
 .me-wordbook-link {
@@ -7095,7 +7159,7 @@ svg {
   }
 
   .my-reading-row {
-    grid-template-columns: minmax(0, 1fr) 52px 31px 13px;
+    grid-template-columns: minmax(0, 1fr) 52px 31px 13px 25px;
     gap: 7px;
   }
 
