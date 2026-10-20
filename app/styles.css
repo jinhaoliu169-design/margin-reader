@@ -5790,6 +5790,12 @@ svg {
   min-width: 108px;
 }
 
+.magazine-lookup-tip {
+  margin: 8px 0 0;
+  color: var(--faint);
+  font-size: 8.5px;
+}
+
 .magazine-lookup-empty {
   display: flex;
   flex-wrap: wrap;

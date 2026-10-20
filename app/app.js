@@ -999,6 +999,15 @@ function magazineSearchLinks(query, publication) {
     { label: "百度搜索", url: `https://www.baidu.com/s?wd=${encoded}` },
     { label: "Bing 搜索", url: `https://www.bing.com/search?q=${encoded}` },
     { label: "Google 搜索", url: `https://www.google.com/search?q=${encoded}` },
+    { label: "抖音搜索", url: `https://www.douyin.com/search/${encoded}` },
+    {
+      label: "小红书搜索",
+      url: `https://www.xiaohongshu.com/search_result?keyword=${encoded}`,
+    },
+    {
+      label: "微信搜索",
+      url: `https://weixin.sogou.com/weixin?type=2&query=${encoded}`,
+    },
   ];
   if (publication) {
     links.unshift({ label: "打开官网", url: publication.url });
@@ -1086,8 +1095,8 @@ function magazineLookupMarkup(lookup) {
       ${
         !publication && !lookup.articles.length
           ? `<div class="magazine-no-result">
-              <strong>还没有直接匹配到这本刊或这篇文章。</strong>
-              <p>可以先打开搜索链接确认来源；找到能访问的页面后，把链接和备注存到「我的外刊链接」，再用截图精读导入正文。</p>
+              <strong>站内还没有「${escapeHtml(lookup.query)}」这篇精读。</strong>
+              <p>它可能是一篇文章标题、抖音/小红书账号名或刊物简称，不一定是刊名。站内目前收录 120 篇原创分级精读；先用下面的平台入口找到原文，再把链接存到「我的外刊链接」，用截图精读导入正文。也可以输入完整刊名，例如「经济学人」。</p>
             </div>`
           : ""
       }
@@ -1200,6 +1209,7 @@ function renderMagazines() {
           <input id="magazine-lookup-input" type="search" value="${escapeHtml(state.magazineLookup?.query || state.magazineQuery)}" placeholder="例如：The Economist / 经济学人 / AI and work" autocomplete="off" />
           <button class="button-primary" type="submit">查找链接</button>
         </form>
+        <p class="magazine-lookup-tip">只知道文章名也可以搜；如果知道刊物，写成「经济学人 牛来」会更准确。</p>
         ${magazineLookupMarkup(state.magazineLookup)}
       </section>
 
