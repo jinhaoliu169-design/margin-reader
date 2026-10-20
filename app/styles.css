@@ -1884,9 +1884,50 @@ svg {
   display: none;
 }
 
+.reader-panel-tab {
+  position: absolute;
+  z-index: 40;
+  top: 96px;
+  display: none;
+  min-height: 64px;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 5px;
+  color: var(--moss);
+  border: 1px solid var(--line-strong);
+  background: var(--paper-bright);
+  box-shadow: 0 8px 22px rgba(61, 47, 25, 0.1);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  writing-mode: vertical-rl;
+}
+
+.reader-panel-tab:hover {
+  color: var(--paper-bright);
+  border-color: var(--moss);
+  background: var(--moss);
+}
+
+.reader-panel-tab-left {
+  left: 0;
+  border-radius: 0 5px 5px 0;
+}
+
+.reader-panel-tab-right {
+  right: 0;
+  border-radius: 5px 0 0 5px;
+}
+
+.reader-layout.is-rail-collapsed .reader-panel-tab-left,
+.reader-layout.is-dict-collapsed .reader-panel-tab-right {
+  display: flex;
+}
+
 .reader-rail {
   position: sticky;
   top: calc(var(--topbar-height) + 30px);
+  grid-column: 1;
 }
 
 .reader-rail-cover {
@@ -2017,6 +2058,7 @@ svg {
 
 .reader-sheet {
   position: relative;
+  grid-column: 2;
   min-height: 76vh;
   padding: 54px clamp(36px, 5vw, 67px) 48px;
   border: 1px solid var(--line);
@@ -2637,6 +2679,7 @@ svg {
 .dictionary-panel {
   position: sticky;
   top: calc(var(--topbar-height) + 30px);
+  grid-column: 3;
   max-height: calc(100dvh - var(--topbar-height) - 56px);
   overflow: auto;
   border: 1px solid var(--line);
@@ -6518,6 +6561,14 @@ svg {
     display: none;
   }
 
+  .reader-sheet {
+    grid-column: 1;
+  }
+
+  .dictionary-panel {
+    grid-column: 2;
+  }
+
   .import-head,
   .import-grid {
     grid-template-columns: 1fr;
@@ -6730,6 +6781,10 @@ svg {
 
   .reader-resizer {
     display: none;
+  }
+
+  .reader-panel-tab {
+    display: none !important;
   }
 
   .book-landing-main {

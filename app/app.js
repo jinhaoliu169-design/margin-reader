@@ -1933,6 +1933,7 @@ function renderReaderShell() {
       <div class="reader-progress-global" aria-hidden="true"><span style="width:${progressPercent}%"></span></div>
       <div class="reader-layout">
         <div class="reader-resizer reader-resizer-left" data-reader-resizer="left" role="separator" aria-orientation="vertical" aria-label="拖动调整左侧封面宽度；双击收起或展开" tabindex="0"></div>
+        <button class="reader-panel-tab reader-panel-tab-left" type="button" data-action="toggle-reader-rail" title="显示左侧封面">封面</button>
         <aside class="reader-rail">
           <div class="reader-rail-cover">
             ${coverFallbackHtml(book)}
@@ -2060,6 +2061,7 @@ function renderReaderShell() {
         </article>
 
         <div class="reader-resizer reader-resizer-right" data-reader-resizer="right" role="separator" aria-orientation="vertical" aria-label="拖动调整右侧词典宽度；双击收起或展开" tabindex="0"></div>
+        <button class="reader-panel-tab reader-panel-tab-right" type="button" data-action="toggle-dict" title="显示右侧词典">词典</button>
         <aside class="dictionary-panel ${state.dictionary ? "is-open" : ""}" id="dictionary-panel" aria-live="polite">
           ${dictionaryPanelMarkup()}
         </aside>
