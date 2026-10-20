@@ -10,10 +10,14 @@ const STORAGE = {
   magazineLinks: "margin_magazine_links_v1",
   readParagraphs: "margin_read_paragraphs_v1",
   readerLayout: "margin_reader_layout_v1",
+  readingSpeed: "margin_reading_speed_v1",
   selectionPinned: "margin_selection_pinned_v1",
+  selectionToolbarPosition: "margin_selection_toolbar_position_v1",
+  people: "margin_people_v1",
 };
 
 const PAGE_SIZE = 55;
+const READING_SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
 const CATEGORIES = ["全部", "经典", "奇幻", "科幻", "悬疑", "爱情", "历史", "成长", "惊悚", "恐怖", "文学"];
 const MAGAZINE_PUBLICATIONS = [
   {
@@ -272,6 +276,8 @@ const state = {
   visible: 30,
   selectedColor: safeRead(STORAGE.selectedColor, "yellow"),
   selectionPinned: safeRead(STORAGE.selectionPinned, false) === true,
+  selectionToolbarPosition: safeRead(STORAGE.selectionToolbarPosition, null),
+  personDraft: null,
   selection: null,
   currentBook: null,
   currentText: "",
@@ -287,6 +293,7 @@ const state = {
   ),
   readerRailCollapsed: Boolean(savedReaderLayout.railCollapsed),
   readerDictCollapsed: Boolean(savedReaderLayout.dictCollapsed),
+  readingSpeed: normalizeReadingSpeed(safeRead(STORAGE.readingSpeed, 1)),
   paragraphs: [],
   translations: {},
   translationLoading: new Set(),
@@ -365,6 +372,7 @@ const els = {
 
 let dragDepth = 0;
 let readerDrag = null;
+let selectionToolbarDrag = null;
 let selectionTimer = 0;
 let ocrWorker = null;
 
@@ -2153,6 +2161,16 @@ function renderReaderShell() {
                       <svg><use href="#i-volume"></use></svg>
                       <span>朗读全文</span>
                     </button>
+                    <button class="reader-audio-reset" type="button" data-action="restart-full-read-aloud" aria-label="从头开始朗读全文" title="停止当前进度，从全文开头重新朗读">
+                      <svg><use href="#i-restart"></use></svg>
+                      <span>从头读</span>
+                    </button>
+                    <label class="reader-speed-control" title="调整段落、选句和全文朗读速度">
+                      <span class="reader-speed-label">语速</span>
+                      <select id="reading-speed-select" aria-label="朗读速度">
+                        ${readingSpeedOptionsMarkup()}
+                      </select>
+                    </label>
                     <button class="reader-tool-button speech-stop" type="button" data-action="stop-read-aloud" aria-label="停止朗读" title="停止朗读" hidden>
                       <svg><use href="#i-x"></use></svg>
                     </button>`
@@ -2734,6 +2752,11 @@ function addHighlight(highlight) {
 function removeHighlightById(bookId, highlightId) {
   const all = getHighlights(bookId).filter((item) => item.id !== highlightId);
   saveHighlights(bookId, all);
+  const people = getPeople();
+  const remainingPeople = people.filter(
+    (item) => !(item.bookId === bookId && item.highlightId === highlightId),
+  );
+  if (remainingPeople.length !== people.length) savePeople(remainingPeople);
   if (state.currentBook?.id === bookId) renderReaderPage();
 }
 
@@ -2818,13 +2841,35 @@ function updateSelectionPinUi() {
   els.toolbar.classList.toggle("is-pinned", state.selectionPinned);
 }
 
+function clampSelectionToolbarPosition(position = {}) {
+  const width = els.toolbar.offsetWidth || 320;
+  const height = els.toolbar.offsetHeight || 88;
+  const fallbackX = Math.max(8, (window.innerWidth - width) / 2);
+  const fallbackY = Math.max(76, window.innerHeight - height - 86);
+  return {
+    x: Math.max(8, Math.min(window.innerWidth - width - 8, Number(position.x) || fallbackX)),
+    y: Math.max(76, Math.min(window.innerHeight - height - 8, Number(position.y) || fallbackY)),
+  };
+}
+
+function applySelectionToolbarPosition() {
+  const position = clampSelectionToolbarPosition(
+    state.selectionToolbarPosition || {
+      x: (window.innerWidth - (els.toolbar.offsetWidth || 320)) / 2,
+      y: window.innerHeight - (els.toolbar.offsetHeight || 88) - 86,
+    },
+  );
+  state.selectionToolbarPosition = position;
+  els.toolbar.style.left = `${Math.round(position.x)}px`;
+  els.toolbar.style.top = `${Math.round(position.y)}px`;
+}
+
 function positionSelectionToolbar(rect) {
   els.toolbar.hidden = false;
   updateSelectionPinUi();
   if (state.selectionPinned) {
-    els.toolbar.style.left = "";
-    els.toolbar.style.top = "";
-    els.selectionHint.textContent = `查词、朗读或标记「${truncate(state.selection?.query || "", 22)}」`;
+    applySelectionToolbarPosition();
+    els.selectionHint.textContent = `查询、翻译、朗读或标记「${truncate(state.selection?.query || "", 22)}」`;
     return;
   }
   const width = els.toolbar.offsetWidth || 310;
@@ -2835,16 +2880,26 @@ function positionSelectionToolbar(rect) {
   top = Math.max(76, top);
   els.toolbar.style.left = `${left}px`;
   els.toolbar.style.top = `${top}px`;
-  els.selectionHint.textContent = `查词、朗读或标记「${truncate(state.selection?.query || "", 22)}」`;
+  els.selectionHint.textContent = `查询、翻译、朗读或标记「${truncate(state.selection?.query || "", 22)}」`;
 }
 
 function toggleSelectionPin() {
   state.selectionPinned = !state.selectionPinned;
   safeWrite(STORAGE.selectionPinned, state.selectionPinned);
   if (state.selectionPinned) {
+    if (!state.selectionToolbarPosition) {
+      const rect = els.toolbar.getBoundingClientRect();
+      state.selectionToolbarPosition = { x: rect.left, y: rect.top };
+    }
+    state.selectionToolbarPosition = clampSelectionToolbarPosition(state.selectionToolbarPosition);
+    safeWrite(STORAGE.selectionToolbarPosition, state.selectionToolbarPosition);
     updateSelectionPinUi();
+    applySelectionToolbarPosition();
     return;
   }
+  els.toolbar.style.left = "";
+  els.toolbar.style.top = "";
+  safeWrite(STORAGE.selectionToolbarPosition, state.selectionToolbarPosition);
   const selection = window.getSelection();
   if (selection && !selection.isCollapsed && selection.rangeCount) {
     positionSelectionToolbar(selection.getRangeAt(0).getBoundingClientRect());
@@ -2918,7 +2973,7 @@ function lookupSelection() {
   const current = readSelectionAction();
   if (!current || !state.currentBook) return;
   if (current.query.length > 80 || current.query.split(/\s+/).length > 8) {
-    showToast("查词请选中一个词或短句；整句可以用「只读这句」朗读。", {
+    showToast("一次可查询一个单词或短词组，长句会自动翻译。", {
       icon: "i-search",
       duration: 4200,
     });
@@ -2930,6 +2985,24 @@ function lookupSelection() {
     paragraph: current.paragraph,
     origin: "lookup",
   });
+}
+
+function lookupOrTranslateSelection() {
+  const current = state.selection;
+  if (!current || !state.currentBook) return;
+  const text = String(current.rawText || current.text || current.query || "").trim();
+  const words = text.match(/[A-Za-z][A-Za-z'’-]*/g) || [];
+  const hasSentencePunctuation = /[.!?;；,，:：—–…]/u.test(text);
+  const sentenceLike =
+    words.length > 8 ||
+    text.length > 90 ||
+    (words.length > 1 && hasSentencePunctuation);
+
+  if (sentenceLike) {
+    translateSelection();
+    return;
+  }
+  lookupSelection();
 }
 
 function pronounceSelection() {
@@ -2976,12 +3049,14 @@ function speakTextOnly(text, paragraphIndex, mode = "selection") {
   const token = speechState.token;
   speechState.mode = mode;
   speechState.paragraphIndex = paragraphIndex;
+  speechState.text = clean;
   speechState.paused = false;
   const utterance = makeReadUtterance(clean);
   utterance.onend = () => {
     if (speechState.token !== token) return;
     speechState.mode = null;
     speechState.paragraphIndex = null;
+    speechState.text = "";
     updateSpeechUi();
   };
   utterance.onerror = () => {
@@ -3010,7 +3085,7 @@ function readFromSelection() {
   const synth = "speechSynthesis" in window ? window.speechSynthesis : null;
   if (!synth) {
     showToast("这个浏览器暂时不支持英语朗读。", { icon: "i-volume" });
-    return;
+    return false;
   }
   const paragraph = state.paragraphs[current.paragraph] || "";
   const sentence = sentenceSpanAt(paragraph, current.start);
@@ -3075,6 +3150,91 @@ async function translateSelection() {
     result.classList.add("is-error");
     result.textContent = `翻译失败：${error.message || "请稍后重试。"}`;
   }
+}
+
+function getPeople() {
+  const items = safeRead(STORAGE.people, []);
+  return Array.isArray(items) ? items : [];
+}
+
+function savePeople(items) {
+  safeWrite(STORAGE.people, items.slice(0, 500));
+}
+
+function openPersonDialog() {
+  const current = state.selection;
+  if (!current || !state.currentBook) return;
+  state.personDraft = {
+    ...current,
+    bookId: state.currentBook.id,
+    bookTitle: state.currentBook.title,
+  };
+  hideSelectionToolbar();
+  const dialog = document.querySelector("#person-dialog");
+  const nameInput = document.querySelector("#person-name-input");
+  const noteInput = document.querySelector("#person-note-input");
+  if (!dialog || !nameInput || !noteInput) return;
+  nameInput.value = current.text.trim() || current.query;
+  noteInput.value = "";
+  dialog.showModal();
+  window.setTimeout(() => noteInput.focus(), 40);
+}
+
+function savePersonNote() {
+  const draft = state.personDraft;
+  if (!draft) return;
+  if (!state.currentBook || state.currentBook.id !== draft.bookId) {
+    showToast("请回到标记所在的书页后再保存人名。", { icon: "i-x" });
+    return;
+  }
+  const name = document.querySelector("#person-name-input")?.value.trim() || draft.text.trim() || draft.query;
+  const note = document.querySelector("#person-note-input")?.value.trim() || "";
+  if (!name) return;
+  const highlight = {
+    id: `hl-person-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+    paragraph: draft.paragraph,
+    start: draft.start,
+    end: draft.end,
+    text: draft.text,
+    color: "green",
+    createdAt: Date.now(),
+    kind: "person",
+    personName: name,
+    personNote: note,
+  };
+  if (!addHighlight(highlight)) return;
+  const people = getPeople();
+  people.unshift({
+    id: `person-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+    name,
+    note,
+    bookId: draft.bookId,
+    bookTitle: draft.bookTitle,
+    paragraph: draft.paragraph,
+    start: draft.start,
+    end: draft.end,
+    highlightId: highlight.id,
+    createdAt: Date.now(),
+  });
+  savePeople(people);
+  const dialog = document.querySelector("#person-dialog");
+  if (dialog) dialog.close();
+  state.personDraft = null;
+  showToast(`已用绿色记录人名「${name}」`, { icon: "i-check" });
+}
+
+function deletePerson(personId) {
+  const people = getPeople();
+  const target = people.find((item) => item.id === personId);
+  if (!target) return;
+  savePeople(people.filter((item) => item.id !== personId));
+  if (target.highlightId) {
+    const highlights = getHighlights(target.bookId).filter((item) => item.id !== target.highlightId);
+    saveHighlights(target.bookId, highlights);
+    if (state.currentBook?.id === target.bookId) renderReaderPage();
+  }
+  renderMyPage();
+  showToast(`已删除人名备注「${target.name}」`, { icon: "i-trash" });
 }
 
 const IRREGULAR_FORM_BASES = {
@@ -3933,11 +4093,29 @@ let activePronunciationAudio = null;
 let speechState = {
   mode: null,
   paragraphIndex: null,
+  text: "",
   paused: false,
   token: 0,
   queue: [],
   queueIndex: 0,
 };
+
+function normalizeReadingSpeed(value) {
+  const rate = Number(value);
+  return READING_SPEEDS.includes(rate) ? rate : 1;
+}
+
+function formatReadingSpeed(value) {
+  const rate = normalizeReadingSpeed(value);
+  return `${Number.isInteger(rate) ? rate.toFixed(1) : rate}×`;
+}
+
+function readingSpeedOptionsMarkup() {
+  return READING_SPEEDS.map(
+    (rate) =>
+      `<option value="${rate}" ${rate === state.readingSpeed ? "selected" : ""}>${formatReadingSpeed(rate)}</option>`,
+  ).join("");
+}
 
 function audioTextFromUrl(url) {
   try {
@@ -4033,7 +4211,7 @@ function makeReadUtterance(text) {
       .trim(),
   );
   utterance.lang = "en-US";
-  utterance.rate = 0.94;
+  utterance.rate = state.readingSpeed;
   utterance.pitch = 1;
   utterance.volume = 1;
   const synth = window.speechSynthesis;
@@ -4081,6 +4259,7 @@ function stopSpeech() {
   speechState.token += 1;
   speechState.mode = null;
   speechState.paragraphIndex = null;
+  speechState.text = "";
   speechState.paused = false;
   speechState.queue = [];
   speechState.queueIndex = 0;
@@ -4111,12 +4290,14 @@ function speakParagraphAloud(index) {
   const token = speechState.token;
   speechState.mode = "paragraph";
   speechState.paragraphIndex = index;
+  speechState.text = text;
   speechState.paused = false;
   const utterance = makeReadUtterance(text);
   utterance.onend = () => {
     if (speechState.token !== token) return;
     speechState.mode = null;
     speechState.paragraphIndex = null;
+    speechState.text = "";
     updateSpeechUi();
   };
   utterance.onerror = () => {
@@ -4163,7 +4344,7 @@ function startFullSpeech() {
   const synth = "speechSynthesis" in window ? window.speechSynthesis : null;
   if (!synth) {
     showToast("这个浏览器暂时不支持英语朗读。", { icon: "i-volume" });
-    return;
+    return false;
   }
   stopSpeech();
   const startIndex = state.visibleParagraphs[0] ?? 0;
@@ -4176,13 +4357,14 @@ function startFullSpeech() {
     .filter((item) => item.text.trim());
   if (!queue.length) {
     showToast("这一页没有可朗读的正文。", { icon: "i-volume" });
-    return;
+    return false;
   }
   speechState.mode = "full";
   speechState.queue = queue;
   speechState.queueIndex = 0;
   speechState.paused = false;
   speakNextFull(speechState.token);
+  return true;
 }
 
 function toggleFullSpeech() {
@@ -4199,6 +4381,60 @@ function toggleFullSpeech() {
     return;
   }
   startFullSpeech();
+}
+
+function setReadingSpeed(value) {
+  const next = normalizeReadingSpeed(value);
+  const changed = next !== state.readingSpeed;
+  state.readingSpeed = next;
+  safeWrite(STORAGE.readingSpeed, next);
+  const select = document.querySelector("#reading-speed-select");
+  if (select) select.value = String(next);
+  if (!changed) return;
+
+  if (speechState.mode === "paragraph" && Number.isInteger(speechState.paragraphIndex)) {
+    const paragraphIndex = speechState.paragraphIndex;
+    stopSpeech();
+    speakParagraphAloud(paragraphIndex);
+    showToast(`语速已调到 ${formatReadingSpeed(next)}，当前段落从头重读。`, {
+      icon: "i-volume",
+      duration: 2600,
+    });
+    return;
+  }
+
+  if (speechState.mode === "full" && speechState.queue.length) {
+    const queue = speechState.queue.slice();
+    const queueIndex = speechState.queueIndex;
+    stopSpeech();
+    speechState.mode = "full";
+    speechState.queue = queue;
+    speechState.queueIndex = queueIndex;
+    speechState.paused = false;
+    speakNextFull(speechState.token);
+    showToast(`语速已调到 ${formatReadingSpeed(next)}，当前段落从头重读。`, {
+      icon: "i-volume",
+      duration: 2600,
+    });
+    return;
+  }
+
+  if (speechState.mode === "selection" && speechState.text) {
+    const text = speechState.text;
+    const paragraphIndex = speechState.paragraphIndex;
+    stopSpeech();
+    speakTextOnly(text, paragraphIndex, "selection");
+    showToast(`语速已调到 ${formatReadingSpeed(next)}。`, { icon: "i-volume", duration: 2200 });
+    return;
+  }
+
+  showToast(`朗读语速已设为 ${formatReadingSpeed(next)}。`, { icon: "i-volume", duration: 1800 });
+}
+
+function restartReadingFromStart() {
+  if (startFullSpeech()) {
+    showToast("已从头开始朗读全文。", { icon: "i-volume", duration: 2200 });
+  }
 }
 
 async function playAudio(url, text = "") {
@@ -4861,6 +5097,7 @@ function renderMyPage() {
     .sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
   const highlightRecords = allHighlightRecords();
   const words = getWordbook();
+  const people = getPeople();
   const pagesRead = readingRows.reduce(
     (sum, item) =>
       sum +
@@ -4940,6 +5177,36 @@ function renderMyPage() {
           </button>
         </section>
       </div>
+
+      <section class="me-panel people-panel">
+        <div class="me-panel-head">
+          <div><h2>人物备注</h2><p>用绿色标注的人名，以及你记录的中文名、身份和关系。</p></div>
+          <span class="people-count">${people.length} people</span>
+        </div>
+        ${
+          people.length
+            ? `<div class="people-list">${people
+                .map(
+                  (person) => `
+                    <div class="person-row">
+                      <div class="person-row-name">
+                        <i aria-hidden="true"></i>
+                        <strong>${escapeHtml(person.name)}</strong>
+                      </div>
+                      <div class="person-row-note">
+                        ${person.note ? escapeHtml(person.note) : "还没有备注"}
+                        <small>${escapeHtml(person.bookTitle || "已移除的书")} · ${formatShortDate(person.createdAt)}</small>
+                      </div>
+                      <button type="button" data-action="delete-person" data-person-id="${escapeHtml(person.id)}" aria-label="删除这个人名备注">
+                        <svg><use href="#i-trash"></use></svg>
+                      </button>
+                    </div>
+                  `,
+                )
+                .join("")}</div>`
+            : `<div class="people-empty">在正文中选中英文人名，点工具栏里的绿色「人名」即可记录。</div>`
+        }
+      </section>
 
       <section class="trash-panel">
         <div class="me-panel-head">
@@ -5939,6 +6206,7 @@ function bindEvents() {
   window.addEventListener("hashchange", handleRoute);
   window.addEventListener("resize", () => {
     if (state.view === "reading") positionReaderResizers();
+    if (state.selectionPinned && !els.toolbar.hidden) applySelectionToolbarPosition();
   });
 
   document.addEventListener("pointerdown", (event) => {
@@ -5989,6 +6257,38 @@ function bindEvents() {
     if (!readerDrag) return;
     readerDrag = null;
     saveReaderLayout();
+  });
+
+  document.addEventListener("pointerdown", (event) => {
+    const handle = event.target.closest("[data-selection-drag-handle]");
+    if (!handle || !state.selectionPinned) return;
+    const rect = els.toolbar.getBoundingClientRect();
+    selectionToolbarDrag = {
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+    };
+    els.toolbar.classList.add("is-dragging");
+    handle.setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+  });
+
+  document.addEventListener("pointermove", (event) => {
+    if (!selectionToolbarDrag) return;
+    const width = els.toolbar.offsetWidth || 320;
+    const height = els.toolbar.offsetHeight || 88;
+    state.selectionToolbarPosition = {
+      x: Math.max(8, Math.min(window.innerWidth - width - 8, event.clientX - selectionToolbarDrag.offsetX)),
+      y: Math.max(76, Math.min(window.innerHeight - height - 8, event.clientY - selectionToolbarDrag.offsetY)),
+    };
+    els.toolbar.style.left = `${Math.round(state.selectionToolbarPosition.x)}px`;
+    els.toolbar.style.top = `${Math.round(state.selectionToolbarPosition.y)}px`;
+  });
+
+  document.addEventListener("pointerup", () => {
+    if (!selectionToolbarDrag) return;
+    selectionToolbarDrag = null;
+    els.toolbar.classList.remove("is-dragging");
+    safeWrite(STORAGE.selectionToolbarPosition, state.selectionToolbarPosition);
   });
 
   document.addEventListener("dblclick", (event) => {
@@ -6272,6 +6572,9 @@ function bindEvents() {
       case "toggle-full-read-aloud":
         toggleFullSpeech();
         break;
+      case "restart-full-read-aloud":
+        restartReadingFromStart();
+        break;
       case "stop-read-aloud":
         stopSpeech();
         break;
@@ -6310,8 +6613,8 @@ function bindEvents() {
       case "confirm-highlight":
         confirmHighlight();
         break;
-      case "lookup-selection":
-        lookupSelection();
+      case "lookup-or-translate-selection":
+        lookupOrTranslateSelection();
         break;
       case "lookup-magazine-word":
         if (state.currentBook && actionButton.dataset.word) {
@@ -6339,8 +6642,20 @@ function bindEvents() {
       case "read-from-selection":
         readFromSelection();
         break;
-      case "translate-selection":
-        translateSelection();
+      case "annotate-person":
+        openPersonDialog();
+        break;
+      case "close-person-dialog": {
+        const dialog = document.querySelector("#person-dialog");
+        if (dialog) dialog.close();
+        state.personDraft = null;
+        break;
+      }
+      case "save-person-note":
+        savePersonNote();
+        break;
+      case "delete-person":
+        deletePerson(actionButton.dataset.personId);
         break;
       case "close-selection-translation": {
         const dialog = document.querySelector("#selection-translation-dialog");
@@ -6409,7 +6724,8 @@ function bindEvents() {
         break;
       case "remove-highlight":
         removeHighlightById(actionButton.dataset.bookId, actionButton.dataset.highlightId);
-        renderWordbook();
+        if (state.view === "me") renderMyPage();
+        else if (state.view === "wordbook") renderWordbook();
         break;
       case "export-data":
         exportUserData();
@@ -6516,6 +6832,9 @@ function bindEvents() {
   });
 
   document.addEventListener("change", (event) => {
+    if (event.target.id === "reading-speed-select") {
+      setReadingSpeed(event.target.value);
+    }
     if (event.target.id === "ocr-target-select") {
       state.ocr.targetArticleId = event.target.value;
       updateOcrActionLabels();
