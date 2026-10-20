@@ -1,0 +1,7 @@
+.git
+work
+outputs
+*.zip
+*.log
+__pycache__
+

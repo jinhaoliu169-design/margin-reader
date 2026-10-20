@@ -1,0 +1,2 @@
+# Margin Reader uses only the Python standard library.
+
