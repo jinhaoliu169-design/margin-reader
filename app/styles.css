@@ -1837,12 +1837,51 @@ svg {
 }
 
 .reader-layout {
+  position: relative;
   display: grid;
-  grid-template-columns: 214px minmax(0, 690px) minmax(320px, 370px);
+  grid-template-columns: var(--reader-rail-width, 214px) minmax(0, 1fr) var(--reader-dict-width, 370px);
   gap: 27px;
   align-items: start;
   justify-content: center;
   padding-top: 44px;
+}
+
+.reader-resizer {
+  position: absolute;
+  z-index: 32;
+  top: 0;
+  bottom: 0;
+  width: 14px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.reader-resizer::after {
+  position: absolute;
+  top: 18px;
+  bottom: 18px;
+  left: 50%;
+  width: 2px;
+  background: rgba(64, 91, 75, 0.18);
+  content: "";
+  transform: translateX(-50%);
+  transition: background 150ms ease, width 150ms ease;
+}
+
+.reader-resizer:hover::after,
+.reader-resizer:focus-visible::after {
+  width: 3px;
+  background: var(--moss);
+}
+
+.reader-resizer:focus-visible {
+  outline: 2px solid rgba(64, 91, 75, 0.35);
+  outline-offset: -2px;
+}
+
+.reader-layout.is-rail-collapsed .reader-rail,
+.reader-layout.is-dict-collapsed .dictionary-panel {
+  display: none;
 }
 
 .reader-rail {
@@ -6412,7 +6451,7 @@ svg {
   }
 
   .reader-layout {
-    grid-template-columns: 190px minmax(0, 1fr) minmax(300px, 335px);
+    grid-template-columns: var(--reader-rail-width, 190px) minmax(0, 1fr) var(--reader-dict-width, 335px);
     gap: 22px;
   }
 
@@ -6468,10 +6507,14 @@ svg {
   }
 
   .reader-layout {
-    grid-template-columns: minmax(0, 1fr) 330px;
+    grid-template-columns: minmax(0, 1fr) var(--reader-dict-width, 330px);
   }
 
   .reader-rail {
+    display: none;
+  }
+
+  .reader-resizer-left {
     display: none;
   }
 
@@ -6683,6 +6726,10 @@ svg {
   .reader-layout {
     display: block;
     padding-top: 22px;
+  }
+
+  .reader-resizer {
+    display: none;
   }
 
   .book-landing-main {

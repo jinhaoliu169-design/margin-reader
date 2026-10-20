@@ -9,6 +9,7 @@ const STORAGE = {
   noiseFilter: "margin_noise_filter_v1",
   magazineLinks: "margin_magazine_links_v1",
   readParagraphs: "margin_read_paragraphs_v1",
+  readerLayout: "margin_reader_layout_v1",
 };
 
 const PAGE_SIZE = 55;
@@ -226,6 +227,8 @@ const COVER_PALETTES = [
   ["#4c4857", "#f8efa6"],
 ];
 
+const savedReaderLayout = safeRead(STORAGE.readerLayout, {});
+
 const state = {
   books: [],
   view: "library",
@@ -241,6 +244,16 @@ const state = {
   currentText: "",
   readProgressPercent: 0,
   readParagraphs: new Set(),
+  readerRailWidth: Math.max(
+    120,
+    Number(savedReaderLayout.railWidth) || (window.innerWidth <= 1280 ? 190 : 214),
+  ),
+  readerDictWidth: Math.max(
+    220,
+    Number(savedReaderLayout.dictWidth) || (window.innerWidth <= 1280 ? 335 : 370),
+  ),
+  readerRailCollapsed: Boolean(savedReaderLayout.railCollapsed),
+  readerDictCollapsed: Boolean(savedReaderLayout.dictCollapsed),
   paragraphs: [],
   translations: {},
   translationLoading: new Set(),
@@ -316,6 +329,7 @@ const els = {
 };
 
 let dragDepth = 0;
+let readerDrag = null;
 let selectionTimer = 0;
 let ocrWorker = null;
 
@@ -1849,6 +1863,54 @@ function isChapterHeading(text) {
   );
 }
 
+function saveReaderLayout() {
+  safeWrite(STORAGE.readerLayout, {
+    railWidth: state.readerRailWidth,
+    dictWidth: state.readerDictWidth,
+    railCollapsed: state.readerRailCollapsed,
+    dictCollapsed: state.readerDictCollapsed,
+  });
+}
+
+function positionReaderResizers() {
+  const layout = document.querySelector(".reader-layout");
+  if (!layout) return;
+  const rect = layout.getBoundingClientRect();
+  const rail = layout.querySelector(".reader-rail");
+  const dictionary = layout.querySelector(".dictionary-panel");
+  const left = layout.querySelector(".reader-resizer-left");
+  const right = layout.querySelector(".reader-resizer-right");
+  if (left) {
+    const railRect = rail?.getBoundingClientRect();
+    left.style.left = railRect && !state.readerRailCollapsed
+      ? `${Math.round(railRect.right - rect.left + 6)}px`
+      : "4px";
+  }
+  if (right) {
+    const dictRect = dictionary?.getBoundingClientRect();
+    right.style.left = dictRect && !state.readerDictCollapsed
+      ? `${Math.round(dictRect.left - rect.left - 20)}px`
+      : `${Math.max(4, Math.round(rect.width - 18))}px`;
+  }
+}
+
+function applyReaderLayout() {
+  const layout = document.querySelector(".reader-layout");
+  if (!layout) return;
+  layout.style.setProperty(
+    "--reader-rail-width",
+    `${state.readerRailCollapsed ? 0 : Math.round(state.readerRailWidth)}px`,
+  );
+  layout.style.setProperty(
+    "--reader-dict-width",
+    `${state.readerDictCollapsed ? 0 : Math.round(state.readerDictWidth)}px`,
+  );
+  const compact = window.innerWidth <= 860;
+  layout.classList.toggle("is-rail-collapsed", !compact && state.readerRailCollapsed);
+  layout.classList.toggle("is-dict-collapsed", !compact && state.readerDictCollapsed);
+  requestAnimationFrame(positionReaderResizers);
+}
+
 function renderReaderShell() {
   const book = state.currentBook;
   if (!book) return;
@@ -1870,6 +1932,7 @@ function renderReaderShell() {
     <section class="reading-view">
       <div class="reader-progress-global" aria-hidden="true"><span style="width:${progressPercent}%"></span></div>
       <div class="reader-layout">
+        <div class="reader-resizer reader-resizer-left" data-reader-resizer="left" role="separator" aria-orientation="vertical" aria-label="拖动调整左侧封面宽度；双击收起或展开" tabindex="0"></div>
         <aside class="reader-rail">
           <div class="reader-rail-cover">
             ${coverFallbackHtml(book)}
@@ -1979,7 +2042,10 @@ function renderReaderShell() {
               </div>
               <button class="reader-tool-button" type="button" data-action="font-down" aria-label="缩小字号">A−</button>
               <button class="reader-tool-button" type="button" data-action="font-up" aria-label="放大字号">A+</button>
-              <button class="reader-tool-button" type="button" data-action="toggle-dict" aria-label="打开词典">
+              <button class="reader-tool-button" type="button" data-action="toggle-reader-rail" aria-label="显示或隐藏左侧封面" title="显示或隐藏左侧封面">
+                <svg><use href="#i-books"></use></svg>
+              </button>
+              <button class="reader-tool-button" type="button" data-action="toggle-dict" aria-label="显示或隐藏右侧词典" title="显示或隐藏右侧词典">
                 <svg><use href="#i-search"></use></svg>
               </button>
               ${
@@ -1993,12 +2059,14 @@ function renderReaderShell() {
           <div id="reader-content">${pageText}</div>
         </article>
 
+        <div class="reader-resizer reader-resizer-right" data-reader-resizer="right" role="separator" aria-orientation="vertical" aria-label="拖动调整右侧词典宽度；双击收起或展开" tabindex="0"></div>
         <aside class="dictionary-panel ${state.dictionary ? "is-open" : ""}" id="dictionary-panel" aria-live="polite">
           ${dictionaryPanelMarkup()}
         </aside>
       </div>
     </section>
   `;
+  applyReaderLayout();
   updateReaderProgressUi();
   updateSpeechUi();
 }
@@ -5560,6 +5628,72 @@ function importForBook(bookId) {
 
 function bindEvents() {
   window.addEventListener("hashchange", handleRoute);
+  window.addEventListener("resize", () => {
+    if (state.view === "reading") positionReaderResizers();
+  });
+
+  document.addEventListener("pointerdown", (event) => {
+    const handle = event.target.closest("[data-reader-resizer]");
+    if (!handle || window.innerWidth <= 860) return;
+    const side = handle.dataset.readerResizer;
+    if (side === "left" && window.innerWidth <= 1080) return;
+    readerDrag = {
+      side,
+      startX: event.clientX,
+      startWidth:
+        side === "left"
+          ? state.readerRailCollapsed
+            ? 0
+            : state.readerRailWidth
+          : state.readerDictCollapsed
+            ? 0
+            : state.readerDictWidth,
+    };
+    handle.setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+  });
+
+  document.addEventListener("pointermove", (event) => {
+    if (!readerDrag) return;
+    const dx = event.clientX - readerDrag.startX;
+    if (readerDrag.side === "left") {
+      const next = readerDrag.startWidth + dx;
+      if (next < 90) {
+        state.readerRailCollapsed = true;
+      } else {
+        state.readerRailCollapsed = false;
+        state.readerRailWidth = Math.max(120, Math.min(360, next));
+      }
+    } else {
+      const next = readerDrag.startWidth - dx;
+      if (next < 180) {
+        state.readerDictCollapsed = true;
+      } else {
+        state.readerDictCollapsed = false;
+        state.readerDictWidth = Math.max(220, Math.min(560, next));
+      }
+    }
+    applyReaderLayout();
+  });
+
+  document.addEventListener("pointerup", () => {
+    if (!readerDrag) return;
+    readerDrag = null;
+    saveReaderLayout();
+  });
+
+  document.addEventListener("dblclick", (event) => {
+    const handle = event.target.closest("[data-reader-resizer]");
+    if (!handle) return;
+    if (handle.dataset.readerResizer === "left") {
+      state.readerRailCollapsed = !state.readerRailCollapsed;
+    } else {
+      state.readerDictCollapsed = !state.readerDictCollapsed;
+    }
+    applyReaderLayout();
+    saveReaderLayout();
+  });
+
 
   document.addEventListener("click", (event) => {
     const colorButton = event.target.closest("[data-highlight-color]");
@@ -5835,7 +5969,19 @@ function bindEvents() {
         break;
       case "toggle-dict": {
         const panel = document.querySelector("#dictionary-panel");
-        if (panel) panel.classList.toggle("is-open");
+        if (window.innerWidth <= 860) {
+          if (panel) panel.classList.toggle("is-open");
+        } else {
+          state.readerDictCollapsed = !state.readerDictCollapsed;
+          applyReaderLayout();
+          saveReaderLayout();
+        }
+        break;
+      }
+      case "toggle-reader-rail": {
+        state.readerRailCollapsed = !state.readerRailCollapsed;
+        applyReaderLayout();
+        saveReaderLayout();
         break;
       }
       case "close-dict": {
