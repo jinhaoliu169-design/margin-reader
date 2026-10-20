@@ -1116,6 +1116,12 @@ svg {
   letter-spacing: 0.04em;
 }
 
+.book-availability-catalog {
+  color: var(--muted);
+  border: 1px solid var(--line);
+  background: var(--paper-bright);
+}
+
 .book-meta {
   padding-top: 11px;
 }

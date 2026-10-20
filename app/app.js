@@ -217,6 +217,29 @@ const MAGAZINE_PUBLICATIONS = [
     level: "六级 / 雅思",
   },
 ];
+
+const EXTRA_BOOKS = [
+  {
+    id: "ol-fourth-wing",
+    title: "Fourth Wing",
+    titleZh: "第四翼",
+    author: "Rebecca Yarros",
+    year: 2023,
+    cover: "https://covers.openlibrary.org/b/id/14407898-L.jpg",
+    coverId: 14407898,
+    primary: "奇幻",
+    tags: ["奇幻", "爱情", "版权书目"],
+    subjects: ["Dragons", "Military schools", "Fantasy fiction"],
+    editions: 0,
+    gutenbergId: null,
+    available: false,
+    featuredRank: 0,
+    seed: 14407898,
+    sourceUrl: "https://openlibrary.org/works/OL29226517W",
+    notes: "2023 年出版，仍在版权保护期；站点不内置全文，支持导入你合法拥有的文本或截图。",
+  },
+];
+
 const COVER_PALETTES = [
   ["#435f50", "#fff8e8"],
   ["#2f3e53", "#f4e4b2"],
@@ -522,7 +545,7 @@ async function init() {
     const response = await fetch("data/books.json");
     if (!response.ok) throw new Error("Book catalog unavailable");
     const payload = await response.json();
-    state.books = payload.books || [];
+    state.books = [...(payload.books || []), ...EXTRA_BOOKS];
     const magazinePayload = await fetch("data/magazines.json")
       .then((result) => (result.ok ? result.json() : { articles: [] }))
       .catch(() => ({ articles: [] }));
@@ -762,7 +785,7 @@ function renderLibrary() {
           <h1 class="hero-title">Eleven<br /><span class="marked-word">精读书库。</span></h1>
           <p class="hero-motto">把小说，读成自己的。</p>
           <p class="hero-lede">
-            <strong>${state.books.length} 本公版英语小说</strong>，全部可以在站内免费读全文。
+            <strong>${readableCount} 本公版英语小说</strong>，全部可以在站内免费读全文；另收录版权书目《Fourth Wing》。
             选中一个词，标记它，也留住它；拖进一页文章截图，文字也会回到同一个阅读器。
           </p>
           <div class="hero-actions">
@@ -919,7 +942,10 @@ function filteredBooks() {
   books = [...books].sort((a, b) => {
     if (state.sort === "recent") return (b.year || 0) - (a.year || 0);
     if (state.sort === "title") return a.title.localeCompare(b.title, "en");
-    return (a.featuredRank || 99999) - (b.featuredRank || 99999);
+    return (
+      (Number.isFinite(Number(a.featuredRank)) ? Number(a.featuredRank) : 99999) -
+      (Number.isFinite(Number(b.featuredRank)) ? Number(b.featuredRank) : 99999)
+    );
   });
   return books;
 }
@@ -931,7 +957,7 @@ function renderBookCard(book, index) {
         <span class="book-cover-wrap">
           ${coverFallbackHtml(book)}
           ${coverImageHtml(book)}
-          ${book.available ? '<span class="book-availability">全文</span>' : ""}
+          ${book.available ? '<span class="book-availability">全文</span>' : '<span class="book-availability book-availability-catalog">想读</span>'}
         </span>
       </button>
       <div class="book-meta">
@@ -1583,6 +1609,9 @@ function renderReaderCover() {
                   <span class="borrow-slot" data-borrow-slot>
                     <span class="button-secondary borrow-loading">正在查找完整借阅版…</span>
                   </span>`
+                  + (book.sourceUrl
+                    ? `<a class="button-secondary" href="${escapeHtml(book.sourceUrl)}" target="_blank" rel="noreferrer">查看书目信息 <svg><use href="#i-external"></use></svg></a>`
+                    : "")
             }
           </div>
           ${
