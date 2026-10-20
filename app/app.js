@@ -3853,9 +3853,25 @@ function dictionaryContextFor(query, meta = {}) {
 
 function inferDictionaryPos(sentence, word) {
   const source = String(sentence || "");
-  const index = source.toLowerCase().indexOf(String(word || "").toLowerCase());
+  const normalizedWord = String(word || "").toLowerCase();
+  const index = source.toLowerCase().indexOf(normalizedWord);
   if (index < 0) return "";
   const before = source.slice(Math.max(0, index - 36), index).toLowerCase();
+  const after = source.slice(index + normalizedWord.length, index + normalizedWord.length + 36).toLowerCase();
+  if (
+    normalizedWord === "that" &&
+    /\b(?:say|said|says|think|thought|know|knew|believe|believed|hope|hoped|find|found|show|shows|suggest|suggests|notice|noticed|feel|felt)\s*$/.test(before) &&
+    /^\s+(?:a|an|the|it|he|she|they|we|you|i|there)\b/.test(after)
+  ) {
+    return "conj";
+  }
+  if (
+    ["that", "which", "who", "whom", "whose"].includes(normalizedWord) &&
+    /\b(?:the|a|an|this|that|these|those|person|people|place|thing|room|book|man|woman|child)\s*$/.test(before)
+  ) {
+    return "pron";
+  }
+  if (/(?:ing|ed)$/.test(normalizedWord) && /\b(?:am|is|are|was|were|be|been|being)\s+$/.test(before)) return "v";
   if (/\b(?:to|will|would|can|could|should|may|might|must|do|does|did|not)\s+$/.test(before)) return "v";
   if (/\b(?:is|are|was|were|be|been|being|seems?|looks?|becomes?|feels?)\s+$/.test(before)) return "adj";
   if (/\b(?:a|an|the|this|that|these|those|his|her|their|our|my|your|its|some|any|many|few|most|several)\s+$/.test(before)) return "n";
@@ -3869,16 +3885,28 @@ function dictionaryPosGroup(pos = "") {
   if (/^v|^vi|^vt|^动/.test(value)) return "v";
   if (/^adj|^形/.test(value)) return "adj";
   if (/^adv|^副/.test(value)) return "adv";
+  if (/^conj|^连/.test(value)) return "conj";
+  if (/^pron|^代/.test(value)) return "pron";
+  if (/^det|^限/.test(value)) return "det";
   return "";
 }
 
-function contextualMeaningFallback(data, context) {
+function contextualMeaningFor(data, context, markedMeaning = "") {
   const meanings = data?.meanings || [];
-  if (!meanings.length) return "";
+  if (!meanings.length) return String(markedMeaning || "").trim();
   const guessed = inferDictionaryPos(context.sentence, context.target);
   const matching = guessed ? meanings.find((item) => dictionaryPosGroup(item.pos) === guessed) : null;
-  const entry = matching || meanings[0];
-  return String(entry.text || "")
+  if (matching) {
+    const marker = String(markedMeaning || "").trim();
+    if (marker && matching.text.includes(marker)) return marker;
+    return String(matching.text || "")
+      .split(/[；;]/)
+      .slice(0, 2)
+      .join("；")
+      .trim();
+  }
+  if (markedMeaning) return String(markedMeaning).trim();
+  return String(meanings[0].text || "")
     .split(/[；;]/)
     .slice(0, 2)
     .join("；")
@@ -4151,10 +4179,11 @@ async function enrichDictionaryContext(request) {
   if (state.dictionary !== request) return;
   const taggedMatch = /\[\[([\s\S]+?)\]\]/.exec(String(taggedTranslation));
   const markedMeaning = String(taggedMatch?.[1] || "").trim();
-  context.meaning =
-    markedMeaning && /[\u3400-\u9fff]/.test(markedMeaning)
-      ? markedMeaning
-      : contextualMeaningFallback(request.data, context);
+  context.meaning = contextualMeaningFor(
+    request.data,
+    context,
+    /[\u3400-\u9fff]/.test(markedMeaning) ? markedMeaning : "",
+  );
   context.translation = String(sentenceTranslation || taggedTranslation || "")
     .replace(/\[\[|\]\]/g, "")
     .trim();
