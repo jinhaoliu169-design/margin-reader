@@ -238,6 +238,8 @@ const state = {
   selection: null,
   currentBook: null,
   currentText: "",
+  readProgressPercent: 0,
+  readingStartedAt: 0,
   paragraphs: [],
   translations: {},
   translationLoading: new Set(),
@@ -485,7 +487,7 @@ function updateTopbar(context) {
   if (context) els.topbarContext.textContent = context;
   els.topbarCount.textContent =
     state.view === "magazines"
-      ? `${state.magazines.length || 120} 篇`
+      ? `${state.magazines.length || 520} 篇`
       : `${state.books.length || 620} 本`;
 }
 
@@ -638,6 +640,10 @@ async function saveImportToServer(item) {
 
 async function handleRoute() {
   hideSelectionToolbar();
+  if (state.view === "reading" && state.currentBook && !state.readerLoading) {
+    state.readProgressPercent = Math.max(state.readProgressPercent, computeReadingPercent());
+    saveProgress();
+  }
   els.toastRegion.replaceChildren();
   document.querySelectorAll("dialog[open]").forEach((dialog) => dialog.close());
   const hash = location.hash || "#/library";
@@ -714,7 +720,7 @@ function renderLibrary() {
   const continueBook = continueTarget();
   const progress = latestProgress();
   const progressPercent = progress
-    ? Math.max(2, Math.round(((progress.page + 1) / Math.max(1, progress.totalPages)) * 100))
+    ? Math.max(2, storedProgressPercent(progress))
     : 0;
   const readableCount = state.books.filter((book) => book.available).length;
   const highlightCount = Object.values(safeRead(STORAGE.highlights, {})).reduce(
@@ -1096,7 +1102,7 @@ function magazineLookupMarkup(lookup) {
         !publication && !lookup.articles.length
           ? `<div class="magazine-no-result">
               <strong>站内还没有「${escapeHtml(lookup.query)}」这篇精读。</strong>
-              <p>它可能是一篇文章标题、抖音/小红书账号名或刊物简称，不一定是刊名。站内目前收录 120 篇原创分级精读；先用下面的平台入口找到原文，再把链接存到「我的外刊链接」，用截图精读导入正文。也可以输入完整刊名，例如「经济学人」。</p>
+              <p>它可能是一篇文章标题、抖音/小红书账号名或刊物简称，不一定是刊名。站内目前收录 ${state.magazines.length || 520} 篇原创分级精读；先用下面的平台入口找到原文，再把链接存到「我的外刊链接」，用截图精读导入正文。也可以输入完整刊名，例如「经济学人」。</p>
             </div>`
           : ""
       }
@@ -1258,7 +1264,7 @@ function renderMagazines() {
       </section>
 
       <p class="magazine-copyright-note">
-        站内 120 篇为原创分级精读，主题参考公开刊物，不是原文转载。受版权保护的原文请通过官网阅读；需要精读时，用截图或粘贴你自己能访问的片段。
+        站内 ${state.magazines.length || 520} 篇为原创分级精读，主题参考公开刊物，不是原文转载。受版权保护的原文请通过官网阅读；需要精读时，用截图或粘贴你自己能访问的片段。
       </p>
     </section>
   `;
@@ -1385,6 +1391,8 @@ async function openReader(bookId, options = {}) {
   state.hiddenParagraphCount = 0;
   state.readerError = "";
   state.readerLoading = true;
+  state.readProgressPercent = 0;
+  state.readingStartedAt = Date.now();
   state.dictionary = null;
   state.dictionaryTab = "simple";
   state.pendingDictQuery = options.query || "";
@@ -1468,9 +1476,11 @@ async function openReader(bookId, options = {}) {
       }
     }
     state.page = Math.max(0, Math.min(state.totalPages - 1, requestedPage));
+    state.readProgressPercent = storedProgressPercent(saved);
     state.readerLoading = false;
     renderReaderShell();
     saveProgress();
+    scheduleProgressUpdate();
     prefetchCurrentPageTranslations();
     if (book.id.startsWith("import-")) {
       prefetchAllImportedTranslations();
@@ -1537,7 +1547,7 @@ function renderReaderCover() {
           }
           ${
             progress && canRead
-              ? `<div class="landing-progress"><span>上次读到第 ${savedPage + 1} 页</span><strong>${Math.max(1, Math.round(((savedPage + 1) / Math.max(1, progress.totalPages || 1)) * 100))}%</strong></div>`
+              ? `<div class="landing-progress"><span>上次读到第 ${savedPage + 1} 页</span><strong>${storedProgressPercent(progress)}%</strong></div>`
               : ""
           }
           <div class="landing-actions">
@@ -1840,7 +1850,7 @@ function isChapterHeading(text) {
 function renderReaderShell() {
   const book = state.currentBook;
   if (!book) return;
-  const progressPercent = state.totalPages ? Math.round(((state.page + 1) / state.totalPages) * 100) : 0;
+  const progressPercent = Math.max(0, Math.min(100, Math.round(state.readProgressPercent || 0)));
   const savedSize = Number(safeRead(STORAGE.readerSize, 19.5)) || 19.5;
   const canRead = book.available || book.id.startsWith("import-") || book.kind === "magazine";
   const isMagazine = book.kind === "magazine";
@@ -2259,7 +2269,7 @@ async function togglePageTranslation() {
 
 function updateReaderProgressUi() {
   if (state.view !== "reading" || !state.currentBook) return;
-  const progress = state.totalPages ? Math.round(((state.page + 1) / state.totalPages) * 100) : 0;
+  const progress = Math.max(0, Math.min(100, Math.round(state.readProgressPercent || 0)));
   const top = document.querySelector(".reader-progress-global span");
   const rail = document.querySelector(".reader-progress-track span");
   const label = document.querySelector(".reader-progress-labels strong");
@@ -2298,9 +2308,56 @@ function updatePageTranslationButton() {
   button.classList.toggle("is-busy", state.pageTranslationBusy);
 }
 
+function storedProgressPercent(item) {
+  if (!item) return 0;
+  if (Number.isFinite(Number(item.percent))) {
+    return Math.max(0, Math.min(100, Math.round(Number(item.percent))));
+  }
+  const page = Math.max(0, Number(item.page || 0));
+  const total = Math.max(1, Number(item.totalPages || 1));
+  return total > 1 ? Math.round((page / total) * 100) : 0;
+}
+
+function computeReadingPercent() {
+  if (!state.currentBook || state.readerLoading) return state.readProgressPercent || 0;
+  const content = document.querySelector("#reader-content");
+  if (!content) return state.readProgressPercent || 0;
+  const rect = content.getBoundingClientRect();
+  const contentTop = rect.top + window.scrollY;
+  const viewportHeight = Math.max(320, window.innerHeight);
+  const headerOffset = 88;
+  const scrolled = Math.max(0, window.scrollY + headerOffset - contentTop);
+  const scrollable = Math.max(1, rect.height - (viewportHeight - headerOffset - 24));
+  const scrollFraction = Math.min(1, scrolled / scrollable);
+  const textLength = Math.max(1, String(state.currentText || "").length);
+  const timeNeeded = Math.max(18, Math.min(60, Math.round(textLength / 1200) * 10));
+  const elapsed = Math.max(0, (Date.now() - state.readingStartedAt) / 1000);
+  const timeFraction = Math.min(1, elapsed / timeNeeded);
+  const pageFraction = Math.max(scrollFraction, timeFraction * 0.6);
+  const overall = ((state.page + pageFraction) / Math.max(1, state.totalPages)) * 100;
+  return Math.max(0, Math.min(100, Math.round(overall)));
+}
+
+let progressUpdateTimer = 0;
+
+function scheduleProgressUpdate() {
+  if (state.view !== "reading" || state.readerLoading || !state.currentBook) return;
+  window.clearTimeout(progressUpdateTimer);
+  progressUpdateTimer = window.setTimeout(() => {
+    const computed = computeReadingPercent();
+    if (computed > state.readProgressPercent) {
+      state.readProgressPercent = computed;
+      updateReaderProgressUi();
+      saveProgress();
+    }
+  }, 140);
+}
+
 function saveProgress() {
   if (!state.currentBook || state.readerLoading) return;
   const progress = safeRead(STORAGE.progress, {});
+  const existing = progress[state.currentBook.id];
+  if (!existing && state.readProgressPercent <= 0) return;
   progress[state.currentBook.id] = {
     bookId: state.currentBook.id,
     title: state.currentBook.title,
@@ -2309,6 +2366,7 @@ function saveProgress() {
     paragraph: currentPageParagraphIndices()[0] ?? 0,
     layout: 2,
     totalPages: state.totalPages,
+    percent: Math.max(storedProgressPercent(existing), state.readProgressPercent || 0),
     updatedAt: Date.now(),
   };
   safeWrite(STORAGE.progress, progress);
@@ -2319,6 +2377,11 @@ function goToPage(page) {
   const next = Math.max(0, Math.min(state.totalPages - 1, page));
   if (next === state.page) return;
   state.page = next;
+  state.readProgressPercent = Math.max(
+    state.readProgressPercent,
+    Math.round((next / Math.max(1, state.totalPages)) * 100),
+  );
+  state.readingStartedAt = Date.now();
   state.expandedTranslations.clear();
   renderReaderPage();
   prefetchCurrentPageTranslations();
@@ -4162,7 +4225,11 @@ function renderMyPage() {
   const highlightRecords = allHighlightRecords();
   const words = getWordbook();
   const pagesRead = readingRows.reduce(
-    (sum, item) => sum + Math.min(Number(item.page || 0) + 1, Number(item.totalPages || 1)),
+    (sum, item) =>
+      sum +
+      Math.round(
+        Math.max(0, Number(item.percent || 0)) / 100 * Math.max(1, Number(item.totalPages || 1)),
+      ),
     0,
   );
 
@@ -4211,10 +4278,7 @@ function renderMyPage() {
               ? `<div class="my-reading-list">${readingRows
                   .slice(0, 7)
                   .map((item) => {
-                    const percent = Math.max(
-                      1,
-                      Math.round(((Number(item.page || 0) + 1) / Math.max(1, Number(item.totalPages || 1))) * 100),
-                    );
+                    const percent = Math.max(1, storedProgressPercent(item));
                     return `
                       <button class="my-reading-row" type="button" data-action="open-reading-record" data-book-id="${escapeHtml(item.bookId)}">
                         <span class="my-reading-copy">
@@ -5233,6 +5297,8 @@ function importForBook(bookId) {
 
 function bindEvents() {
   window.addEventListener("hashchange", handleRoute);
+  window.addEventListener("scroll", scheduleProgressUpdate, { passive: true });
+  window.setInterval(scheduleProgressUpdate, 5000);
 
   document.addEventListener("click", (event) => {
     const colorButton = event.target.closest("[data-highlight-color]");

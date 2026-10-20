@@ -4946,9 +4946,10 @@ svg {
 }
 
 .my-reading-copy small {
-  margin-top: 2px;
+  margin-top: 4px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .my-reading-progress {
@@ -4966,7 +4967,7 @@ svg {
 .my-reading-row b {
   color: var(--muted);
   font-family: var(--serif);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 500;
 }
 
