@@ -2773,7 +2773,9 @@ function pronounceSelection() {
 function sentenceSpanAt(text, offset) {
   const source = String(text || "");
   const target = Math.max(0, Math.min(Number(offset) || 0, source.length));
-  const pattern = /[^.!?]+[.!?]+(?:["”’']+)?|[^.!?]+$/g;
+  // Treat clause punctuation as a read-aloud boundary too, so selecting a
+  // clause after a comma does not fall back to the whole paragraph.
+  const pattern = /[^.!?;；,，:：—–…]+(?:[.!?;；,，:：—–…]+(?:["”’']+)?|$)/g;
   let match;
   let previous = null;
   while ((match = pattern.exec(source))) {
