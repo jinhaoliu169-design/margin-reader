@@ -2956,6 +2956,9 @@ async function confirmHighlight() {
     bookId: state.currentBook.id,
     bookTitle: state.currentBook.title,
     paragraph: current.paragraph,
+    start: current.start,
+    end: current.end,
+    text: current.text,
     highlightId: highlight.id,
     origin: "highlight",
   });
@@ -2988,6 +2991,9 @@ function lookupSelection() {
     bookId: state.currentBook.id,
     bookTitle: state.currentBook.title,
     paragraph: current.paragraph,
+    start: current.start,
+    end: current.end,
+    text: current.text,
     origin: "lookup",
   });
 }
@@ -3018,6 +3024,9 @@ function pronounceSelection() {
     bookId: state.currentBook.id,
     bookTitle: state.currentBook.title,
     paragraph: current.paragraph,
+    start: current.start,
+    end: current.end,
+    text: current.text,
     origin: "lookup",
   });
 }
@@ -3735,7 +3744,7 @@ function dictionaryHomeMarkup() {
     <div class="dict-home">
       <div class="dict-home-mark"><svg><use href="#i-highlight"></use></svg></div>
       <h3>选一个词，<br />看清它的来路。</h3>
-      <p>在正文中选中英文单词或短语，点「查词」只看释义和发音；点「标记」会同时把颜色留在原文。</p>
+      <p>在正文中选中英文单词或长句，点「查词 / 翻译」会自动判断查词还是翻译；点「标记」会同时把颜色留在原文。</p>
       <form class="dict-search-form" id="dict-search-form">
         <svg><use href="#i-search"></use></svg>
         <input name="word" type="search" placeholder="也可以直接查词" autocomplete="off" aria-label="直接查词" />
@@ -3799,6 +3808,114 @@ function dictionaryHighlightCancelMarkup() {
   `;
 }
 
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function dictionaryContextFor(query, meta = {}) {
+  const paragraphIndex = Number(meta.paragraph);
+  if (!Number.isInteger(paragraphIndex) || paragraphIndex < 0) return null;
+  const paragraph = String(state.paragraphs[paragraphIndex] || "");
+  if (!paragraph.trim()) return null;
+
+  let start = Number(meta.start);
+  let end = Number(meta.end);
+  let target = String(meta.text || query || "").trim();
+  if ((!Number.isFinite(start) || !Number.isFinite(end)) && meta.highlightId && meta.bookId) {
+    const highlight = getHighlights(meta.bookId).find((item) => item.id === meta.highlightId);
+    if (highlight) {
+      start = Number(highlight.start);
+      end = Number(highlight.end);
+      target = String(highlight.text || target).trim();
+    }
+  }
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+    const match = new RegExp(escapeRegExp(query), "i").exec(paragraph);
+    if (!match) return null;
+    start = match.index;
+    end = start + match[0].length;
+    target = match[0];
+  }
+
+  const sentence = sentenceSpanAt(paragraph, start);
+  if (!sentence.text) return null;
+  const targetPattern = new RegExp(escapeRegExp(target || query), "i");
+  const taggedSentence = sentence.text.replace(targetPattern, (match) => `[[${match}]]`);
+  return {
+    sentence: sentence.text,
+    taggedSentence: taggedSentence === sentence.text ? sentence.text : taggedSentence,
+    target: target || query,
+    meaning: "",
+    translation: "",
+    status: "loading",
+  };
+}
+
+function inferDictionaryPos(sentence, word) {
+  const source = String(sentence || "");
+  const index = source.toLowerCase().indexOf(String(word || "").toLowerCase());
+  if (index < 0) return "";
+  const before = source.slice(Math.max(0, index - 36), index).toLowerCase();
+  if (/\b(?:to|will|would|can|could|should|may|might|must|do|does|did|not)\s+$/.test(before)) return "v";
+  if (/\b(?:is|are|was|were|be|been|being|seems?|looks?|becomes?|feels?)\s+$/.test(before)) return "adj";
+  if (/\b(?:a|an|the|this|that|these|those|his|her|their|our|my|your|its|some|any|many|few|most|several)\s+$/.test(before)) return "n";
+  if (/\b(?:very|more|most|less|quite|rather|extremely)\s+$/.test(before)) return "adj";
+  return "";
+}
+
+function dictionaryPosGroup(pos = "") {
+  const value = String(pos).toLowerCase();
+  if (/^n|^noun|^名/.test(value)) return "n";
+  if (/^v|^vi|^vt|^动/.test(value)) return "v";
+  if (/^adj|^形/.test(value)) return "adj";
+  if (/^adv|^副/.test(value)) return "adv";
+  return "";
+}
+
+function contextualMeaningFallback(data, context) {
+  const meanings = data?.meanings || [];
+  if (!meanings.length) return "";
+  const guessed = inferDictionaryPos(context.sentence, context.target);
+  const matching = guessed ? meanings.find((item) => dictionaryPosGroup(item.pos) === guessed) : null;
+  const entry = matching || meanings[0];
+  return String(entry.text || "")
+    .split(/[；;]/)
+    .slice(0, 2)
+    .join("；")
+    .trim();
+}
+
+function contextSentenceMarkup(context) {
+  const sentence = String(context.sentence || "");
+  const target = String(context.target || "");
+  const pattern = target ? new RegExp(escapeRegExp(target), "i") : null;
+  const match = pattern?.exec(sentence);
+  if (!match) return escapeHtml(sentence);
+  const before = sentence.slice(0, match.index);
+  const after = sentence.slice(match.index + match[0].length);
+  return `${escapeHtml(before)}<mark>${escapeHtml(match[0])}</mark>${escapeHtml(after)}`;
+}
+
+function dictionaryContextMarkup() {
+  const context = state.dictionary?.context;
+  if (!context) return "";
+  return `
+    <section class="dict-context" aria-label="文章中的语境释义">
+      <div class="dict-context-head">
+        <span>文中释义</span>
+        ${context.status === "loading" ? "<small>正在结合当前句子判断…</small>" : ""}
+      </div>
+      ${context.meaning ? `<strong class="dict-context-meaning">${escapeHtml(context.meaning)}</strong>` : ""}
+      <p class="dict-context-sentence">${contextSentenceMarkup(context)}</p>
+      ${
+        context.translation
+          ? `<p class="dict-context-translation">${escapeHtml(context.translation)}</p>`
+          : ""
+      }
+    </section>
+  `;
+}
+
 function dictionaryEntryMarkup(data) {
   if (!data) return dictionaryErrorMarkup();
   const saved = isWordSaved(data.word);
@@ -3844,6 +3961,7 @@ function dictionaryEntryMarkup(data) {
               : ""
         }
       </div>
+      ${dictionaryContextMarkup()}
       ${dictionaryMorphologyMarkup(data)}
       ${dictionarySaveMarkup(data, saved, linkedHighlight)}
       <div class="dict-tabs" role="tablist" aria-label="词典内容">
@@ -4003,30 +4121,58 @@ function dictionaryTab(id, label, active) {
   return `<button class="dict-tab ${active === id ? "is-active" : ""}" type="button" role="tab" aria-selected="${active === id}" data-dict-tab="${id}">${escapeHtml(label)}</button>`;
 }
 
-async function translateDictionaryFallback(query) {
+async function translateTextsFallback(texts) {
   try {
     const response = await fetch("/api/translate", {
       method: "POST",
       headers: { "Content-Type": "application/json; charset=utf-8" },
-      body: JSON.stringify({ texts: [query] }),
+      body: JSON.stringify({ texts }),
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) return "";
-    return String((payload.translations || [])[0] || "").trim();
+    if (!response.ok) return [];
+    return Array.isArray(payload.translations) ? payload.translations : [];
   } catch {
-    return "";
+    return [];
   }
+}
+
+async function translateDictionaryFallback(query) {
+  const [translation = ""] = await translateTextsFallback([query]);
+  return String(translation || "").trim();
+}
+
+async function enrichDictionaryContext(request) {
+  const context = request?.context;
+  if (!context) return;
+  const [taggedTranslation = "", sentenceTranslation = ""] = await translateTextsFallback([
+    context.taggedSentence,
+    context.sentence,
+  ]);
+  if (state.dictionary !== request) return;
+  const taggedMatch = /\[\[([\s\S]+?)\]\]/.exec(String(taggedTranslation));
+  const markedMeaning = String(taggedMatch?.[1] || "").trim();
+  context.meaning =
+    markedMeaning && /[\u3400-\u9fff]/.test(markedMeaning)
+      ? markedMeaning
+      : contextualMeaningFallback(request.data, context);
+  context.translation = String(sentenceTranslation || taggedTranslation || "")
+    .replace(/\[\[|\]\]/g, "")
+    .trim();
+  context.status = "ready";
+  renderDictionaryPanel();
 }
 
 async function openDictionary(query, meta = {}) {
   const cleaned = normalizeWord(query);
   if (!cleaned) return;
   state.dictionaryTab = "simple";
+  const context = dictionaryContextFor(cleaned, meta);
   const request = {
     query: cleaned,
     status: "loading",
     data: null,
     meta,
+    context,
     error: "",
   };
   state.dictionary = request;
@@ -4044,6 +4190,7 @@ async function openDictionary(query, meta = {}) {
     request.data.rootAnalysis = analyzeWordRoot(cleaned);
     addRecentWord(data.word || cleaned);
     renderDictionaryPanel();
+    enrichDictionaryContext(request);
     enrichWordForm(request.data, request);
     if (!request.data.morphology) enrichEtymology(request.data, cleaned, request);
   } catch (error) {
@@ -4505,10 +4652,13 @@ function saveWordEntry(data, meta = {}) {
     word,
     phonetic: data.phonetic?.us || data.phonetic?.uk || "",
     meaning:
+      state.dictionary?.context?.meaning ||
       (data.meanings || [])
         .slice(0, 2)
         .map((item) => `${item.pos ? item.pos + " " : ""}${item.text}`)
-        .join("；") || data.preview || "",
+        .join("；") ||
+      data.preview ||
+      "",
     sourceBookId: meta.bookId || existing?.sourceBookId || "",
     sourceTitle: meta.bookTitle || existing?.sourceTitle || "",
     page: Number.isFinite(meta.page) ? meta.page : state.page,
@@ -6632,8 +6782,9 @@ function bindEvents() {
         break;
       case "lookup-word":
         if (actionButton.dataset.word) {
+          const { start, end, text, highlightId, ...baseMeta } = state.dictionary?.meta || {};
           openDictionary(actionButton.dataset.word, {
-            ...(state.dictionary?.meta || {}),
+            ...baseMeta,
             origin: "lookup",
           });
         }
