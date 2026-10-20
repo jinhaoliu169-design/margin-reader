@@ -1,0 +1,16 @@
+[build]
+  publish = "app"
+  functions = "netlify/functions"
+  [build.environment]
+    NODE_VERSION = "20"
+
+[functions]
+  node_bundler = "esbuild"
+  included_files = ["app/data/texts/**"]
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
