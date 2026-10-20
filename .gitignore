@@ -1,5 +1,6 @@
 work/
 public/
+.netlify/
 outputs/
 .impeccable/
 __pycache__/

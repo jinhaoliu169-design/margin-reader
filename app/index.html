@@ -176,9 +176,17 @@
 
     <div class="selection-toolbar" id="selection-toolbar" role="toolbar" aria-label="选中文字操作" hidden>
       <div class="selection-main">
+        <button class="selection-lookup" type="button" data-action="lookup-selection" aria-label="查词，不标记">
+          <svg><use href="#i-search"></use></svg>
+          <span class="optional-label">查词</span>
+        </button>
+        <button class="selection-pronounce" type="button" data-action="pronounce-selection" aria-label="播放发音" title="播放发音">
+          <svg><use href="#i-volume"></use></svg>
+        </button>
+        <span class="toolbar-separator" aria-hidden="true"></span>
         <button class="highlight-button" type="button" data-action="confirm-highlight" aria-label="标记并查词">
           <svg><use href="#i-highlight"></use></svg>
-          <span>标记</span>
+          <span class="optional-label">标记</span>
         </button>
         <span class="toolbar-separator" aria-hidden="true"></span>
         <div class="color-options" role="radiogroup" aria-label="标记颜色">
@@ -188,9 +196,9 @@
           <button class="color-dot" type="button" data-highlight-color="blue" aria-label="蓝色" aria-checked="false" role="radio"></button>
         </div>
         <span class="toolbar-separator" aria-hidden="true"></span>
-        <button class="selection-cancel" type="button" data-action="cancel-highlight" aria-label="取消标记">
+        <button class="selection-cancel" type="button" data-action="cancel-highlight" aria-label="取消选择">
           <svg><use href="#i-x"></use></svg>
-          <span>取消</span>
+          <span class="optional-label">取消</span>
         </button>
       </div>
       <span class="selection-hint" id="selection-hint">标记后查看词义</span>

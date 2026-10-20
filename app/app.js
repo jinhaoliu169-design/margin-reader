@@ -1250,8 +1250,8 @@ function renderReaderShell() {
             <div class="reader-progress-track"><span style="width:${progressPercent}%"></span></div>
           </div>
           <div class="reader-rail-note">
-            <strong>一次标记，两件事</strong>
-            选中词后点「标记」，颜色留在原文，释义出现在右侧。你的标记和进度只保存在这台设备。
+            <strong>查词，或留下标记</strong>
+            选中词后可先「查词」听发音；想记住再点「标记」。颜色留在原文，释义出现在右侧。
           </div>
         </aside>
 
@@ -1868,7 +1868,7 @@ function positionSelectionToolbar(rect) {
   if (top < 76) top = rect.bottom + 12;
   els.toolbar.style.left = `${left}px`;
   els.toolbar.style.top = `${top}px`;
-  els.selectionHint.textContent = `标记「${truncate(state.selection?.query || "", 22)}」后查看词义`;
+  els.selectionHint.textContent = `查词或标记「${truncate(state.selection?.query || "", 22)}」`;
 }
 
 function hideSelectionToolbar() {
@@ -1919,6 +1919,42 @@ async function confirmHighlight() {
   });
 }
 
+function readSelectionAction() {
+  const current = state.selection;
+  if (!current) return null;
+  const selection = window.getSelection();
+  if (selection) selection.removeAllRanges();
+  hideSelectionToolbar();
+  return current;
+}
+
+function dictionaryAudioUrl(word, type = 2) {
+  return `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(word)}&type=${type}`;
+}
+
+function lookupSelection() {
+  const current = readSelectionAction();
+  if (!current || !state.currentBook) return;
+  openDictionary(current.query, {
+    bookId: state.currentBook.id,
+    bookTitle: state.currentBook.title,
+    paragraph: current.paragraph,
+    origin: "lookup",
+  });
+}
+
+function pronounceSelection() {
+  const current = readSelectionAction();
+  if (!current || !state.currentBook) return;
+  playAudio(dictionaryAudioUrl(current.query, 2));
+  openDictionary(current.query, {
+    bookId: state.currentBook.id,
+    bookTitle: state.currentBook.title,
+    paragraph: current.paragraph,
+    origin: "lookup",
+  });
+}
+
 /* Dictionary */
 
 function getRecentWords() {
@@ -1946,7 +1982,7 @@ function dictionaryHomeMarkup() {
     <div class="dict-home">
       <div class="dict-home-mark"><svg><use href="#i-highlight"></use></svg></div>
       <h3>选一个词，<br />看清它的来路。</h3>
-      <p>在正文中选中英文单词或短语，点「标记」。颜色留在原文，释义在这里展开。</p>
+      <p>在正文中选中英文单词或短语，点「查词」只看释义和发音；点「标记」会同时把颜色留在原文。</p>
       <form class="dict-search-form" id="dict-search-form">
         <svg><use href="#i-search"></use></svg>
         <input name="word" type="search" placeholder="也可以直接查词" autocomplete="off" aria-label="直接查词" />
@@ -1965,7 +2001,7 @@ function dictionaryHomeMarkup() {
       }
       <div class="dict-hint">
         <strong>快捷操作</strong>
-        选中一个词后可直接点「标记」；手机端释义会从底部展开，读完点右上角关闭。
+        选中一个词后可点「查词」或「标记」；喇叭按钮会直接播放发音。手机端释义从底部展开。
       </div>
     </div>
   `;
@@ -1980,6 +2016,8 @@ function dictionaryLoadingMarkup() {
       <div class="dict-loading-block"></div>
       <div class="dict-loading-line"></div>
       <div class="dict-loading-line"></div>
+      <p class="dict-loading-note">正在查询「${escapeHtml(state.dictionary?.query || "")}」…</p>
+      ${dictionaryHighlightCancelMarkup()}
     </div>
   `;
 }
@@ -1993,7 +2031,18 @@ function dictionaryErrorMarkup() {
         <button class="button-primary" type="button" data-action="retry-dict">重新查询</button>
         <button class="button-secondary" type="button" data-action="close-dict">先继续阅读</button>
       </div>
+      ${dictionaryHighlightCancelMarkup()}
     </div>
+  `;
+}
+
+function dictionaryHighlightCancelMarkup() {
+  if (!state.dictionary?.meta?.highlightId) return "";
+  return `
+    <button class="dict-cancel-highlight" type="button" data-action="remove-current-highlight">
+      <svg><use href="#i-trash"></use></svg>
+      取消这个原文标记
+    </button>
   `;
 }
 
@@ -2039,7 +2088,9 @@ function dictionaryEntryMarkup(data) {
                 ${us ? `<span class="phonetic"><strong>US</strong>/${escapeHtml(us)}/<button class="pronounce-button" type="button" data-audio="${escapeHtml(data.audio?.us || "")}" aria-label="播放美式发音"><svg><use href="#i-volume"></use></svg></button></span>` : ""}
               </div>
             `
-            : ""
+            : data.audio?.us
+              ? `<div class="dict-phonetics dict-phonetics-audio"><button class="pronounce-button dict-pronounce-wide" type="button" data-audio="${escapeHtml(data.audio.us)}" aria-label="播放发音"><svg><use href="#i-volume"></use></svg>播放发音</button></div>`
+              : ""
         }
       </div>
       <div class="dict-tabs" role="tablist" aria-label="词典内容">
@@ -2052,6 +2103,11 @@ function dictionaryEntryMarkup(data) {
         ${
           tab === "simple"
             ? `
+              ${
+                data.fallbackTranslation
+                  ? `<p class="dict-fallback-note">词典暂时没有返回这个词条，先显示整词翻译。标记仍然可以取消。</p>`
+                  : ""
+              }
               ${
                 data.preview
                   ? `<p class="dict-preview">${escapeHtml(data.preview)}</p>`
@@ -2141,7 +2197,7 @@ function dictionaryEntryMarkup(data) {
             : ""
         }
         <div class="dict-source">
-          <span>${data.fallback ? "本地简释 · 网络恢复后会重新查询" : "释义与发音来自有道词典"}</span>
+          <span>${data.fallbackTranslation ? "词典未收录 · 以下为整词翻译" : data.fallback ? "本地简释 · 网络恢复后会重新查询" : "释义与发音来自有道词典"}</span>
           ${
             data.source?.url
               ? `<a href="${escapeHtml(data.source.url)}" target="_blank" rel="noreferrer">查看原页 <svg><use href="#i-external"></use></svg></a>`
@@ -2157,17 +2213,33 @@ function dictionaryTab(id, label, active) {
   return `<button class="dict-tab ${active === id ? "is-active" : ""}" type="button" role="tab" aria-selected="${active === id}" data-dict-tab="${id}">${escapeHtml(label)}</button>`;
 }
 
+async function translateDictionaryFallback(query) {
+  try {
+    const response = await fetch("/api/translate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({ texts: [query] }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) return "";
+    return String((payload.translations || [])[0] || "").trim();
+  } catch {
+    return "";
+  }
+}
+
 async function openDictionary(query, meta = {}) {
   const cleaned = normalizeWord(query);
   if (!cleaned) return;
   state.dictionaryTab = "simple";
-  state.dictionary = {
+  const request = {
     query: cleaned,
     status: "loading",
     data: null,
     meta,
     error: "",
   };
+  state.dictionary = request;
   renderDictionaryPanel();
   const panel = document.querySelector("#dictionary-panel");
   if (panel) panel.classList.add("is-open");
@@ -2175,19 +2247,45 @@ async function openDictionary(query, meta = {}) {
     const response = await fetch(`/api/dictionary?word=${encodeURIComponent(cleaned)}`);
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || "词典服务暂时不可用。");
-    if (state.dictionary?.query !== cleaned) return;
-    state.dictionary.status = "loaded";
-    state.dictionary.data = data;
-    state.dictionary.meta = meta;
+    if (state.dictionary !== request) return;
+    request.status = "loaded";
+    request.data = data;
     addRecentWord(data.word || cleaned);
     renderDictionaryPanel();
     if (meta.origin === "highlight") {
       saveWordEntry(data, meta);
     }
   } catch (error) {
-    if (state.dictionary?.query !== cleaned) return;
-    state.dictionary.status = "error";
-    state.dictionary.error = error.message || "词典服务暂时不可用。";
+    if (state.dictionary !== request) return;
+    const translated = await translateDictionaryFallback(cleaned);
+    if (state.dictionary !== request) return;
+    if (translated) {
+      request.status = "loaded";
+      request.data = {
+        query: cleaned,
+        word: cleaned,
+        phonetic: { uk: "", us: "" },
+        audio: {
+          uk: dictionaryAudioUrl(cleaned, 1),
+          us: dictionaryAudioUrl(cleaned, 2),
+        },
+        meanings: [{ pos: "翻译", text: translated }],
+        examples: [],
+        phrases: [],
+        etymology: [],
+        englishDefinitions: [],
+        source: { name: "整词翻译备用", url: "https://translate.google.com/" },
+        fallbackTranslation: true,
+      };
+      addRecentWord(cleaned);
+      renderDictionaryPanel();
+      if (meta.origin === "highlight") {
+        saveWordEntry(request.data, meta);
+      }
+      return;
+    }
+    request.status = "error";
+    request.error = error.message || "词典服务暂时不可用。";
     renderDictionaryPanel();
   }
 }
@@ -2205,9 +2303,29 @@ function switchDictionaryTab(tab) {
 }
 
 function playAudio(url) {
-  if (!url) return;
-  const audio = new Audio(url);
-  audio.play().catch(() => showToast("发音暂时无法播放。", { icon: "i-volume" }));
+  if (!url) {
+    showToast("这个词暂时没有可用发音。", { icon: "i-volume" });
+    return Promise.resolve(false);
+  }
+  return new Promise((resolve) => {
+    const audio = new Audio(url);
+    let settled = false;
+    const fail = () => {
+      if (settled) return;
+      settled = true;
+      showToast("发音暂时无法播放，可以打开词典再试。", { icon: "i-volume" });
+      resolve(false);
+    };
+    audio.addEventListener("error", fail, { once: true });
+    audio
+      .play()
+      .then(() => {
+        if (settled) return;
+        settled = true;
+        resolve(true);
+      })
+      .catch(fail);
+  });
 }
 
 /* Wordbook */
@@ -2677,7 +2795,7 @@ function renderImport() {
         <aside class="import-side">
           <div class="import-side-block">
             <h3>最近的导入</h3>
-            <p>标题、中文备注、来源和正文保存在本机后台，不会上传到云端。</p>
+            <p>标题、中文备注、来源和正文会保存在本机，并同步到站点后台，方便以后继续添加。</p>
             ${
               imports.length
                 ? `<div class="recent-imports">${imports
@@ -2699,7 +2817,7 @@ function renderImport() {
           </div>
           <div class="privacy-note">
             <svg><use href="#i-check"></use></svg>
-            <span>图片只在浏览器内识别，不会上传；识别后的正文和备注保存到本机后台。词典查询只发送当前选中的英文单词。</span>
+            <span>图片只在浏览器内识别，不会上传；识别后的正文和备注会保存到本机，并同步到站点后台。词典查询只发送当前选中的英文单词。</span>
           </div>
         </aside>
       </div>
@@ -3676,6 +3794,12 @@ function bindEvents() {
       }
       case "confirm-highlight":
         confirmHighlight();
+        break;
+      case "lookup-selection":
+        lookupSelection();
+        break;
+      case "pronounce-selection":
+        pronounceSelection();
         break;
       case "cancel-highlight": {
         const selection = window.getSelection();

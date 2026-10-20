@@ -1278,6 +1278,47 @@ svg {
   gap: 5px;
 }
 
+.selection-lookup {
+  display: inline-flex;
+  height: 34px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  color: var(--paper-bright);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.selection-lookup:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.selection-lookup svg {
+  width: 16px;
+  height: 16px;
+  color: #b9d6c1;
+}
+
+.selection-pronounce {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  color: rgba(255, 251, 243, 0.82);
+  border-radius: 6px;
+}
+
+.selection-pronounce:hover {
+  color: var(--paper-bright);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.selection-pronounce svg {
+  width: 16px;
+  height: 16px;
+}
+
 .highlight-button {
   display: inline-flex;
   height: 34px;
@@ -1370,6 +1411,35 @@ svg {
   color: rgba(255, 251, 243, 0.58);
   font-size: 11px;
   letter-spacing: 0.02em;
+}
+
+@media (max-width: 640px) {
+  .selection-toolbar {
+    max-width: calc(100vw - 24px);
+  }
+
+  .selection-main {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 3px;
+  }
+
+  .selection-lookup,
+  .highlight-button,
+  .selection-cancel {
+    gap: 4px;
+    padding: 0 6px;
+    font-size: 10px;
+  }
+
+  .color-options {
+    gap: 3px;
+  }
+
+  .color-dot {
+    width: 16px;
+    height: 16px;
+  }
 }
 
 @keyframes toolbar-in {
@@ -2593,6 +2663,35 @@ svg {
   animation: skeleton 1.2s ease-in-out infinite;
 }
 
+.dict-loading-note {
+  margin: 18px 0 0;
+  color: var(--muted);
+  font-size: 10.5px;
+}
+
+.dict-cancel-highlight {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 15px;
+  padding: 7px 10px;
+  color: var(--clay);
+  border: 1px solid rgba(163, 72, 53, 0.26);
+  border-radius: 5px;
+  background: transparent;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.dict-cancel-highlight:hover {
+  background: rgba(163, 72, 53, 0.06);
+}
+
+.dict-cancel-highlight svg {
+  width: 13px;
+  height: 13px;
+}
+
 @keyframes skeleton {
   50% {
     opacity: 0.5;
@@ -2671,6 +2770,10 @@ svg {
   margin-top: 11px;
 }
 
+.dict-phonetics-audio {
+  margin-top: 9px;
+}
+
 .phonetic {
   display: inline-flex;
   align-items: center;
@@ -2705,6 +2808,35 @@ svg {
 .pronounce-button svg {
   width: 14px;
   height: 14px;
+}
+
+.dict-pronounce-wide {
+  display: inline-flex;
+  width: auto;
+  height: 28px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  color: var(--moss);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.dict-pronounce-wide:hover {
+  border-color: var(--moss);
+  background: var(--paper);
+}
+
+.dict-fallback-note {
+  margin: 0 0 14px;
+  padding: 9px 11px;
+  color: var(--muted);
+  border-left: 2px solid var(--line-strong);
+  background: var(--paper);
+  font-size: 10px;
+  line-height: 1.65;
 }
 
 .dict-tabs {
