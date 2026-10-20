@@ -709,8 +709,8 @@ export default async (request) => {
 
     if (method === "GET" && path === "/api/dictionary") {
       const query = (url.searchParams.get("word") || "").trim();
-      if (!query || query.length > 80 || !/^[A-Za-z][A-Za-z'’ .-]{0,79}$/.test(query)) {
-        return json({ error: "请输入 1–80 个英文字母、撇号或连字符。" }, 400);
+      if (!query || query.length > 80 || !/^[A-Za-z0-9][A-Za-z0-9'’ .-]{0,79}$/.test(query)) {
+        return json({ error: "请输入 1–80 个英文字母、数字、撇号、空格或连字符。" }, 400);
       }
       try {
         return json(await getDictionary(query));

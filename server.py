@@ -992,9 +992,9 @@ class LexiconHandler(SimpleHTTPRequestHandler):
 
     def handle_dictionary(self, parsed: urllib.parse.ParseResult) -> None:
         query = (urllib.parse.parse_qs(parsed.query).get("word") or [""])[0].strip()
-        if not query or len(query) > 80 or not re.fullmatch(r"[A-Za-z][A-Za-z'’ .-]{0,79}", query):
+        if not query or len(query) > 80 or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9'’ .-]{0,79}", query):
             self.send_json(
-                {"error": "请输入 1–80 个英文字母、撇号或连字符。"},
+                {"error": "请输入 1–80 个英文字母、数字、撇号、空格或连字符。"},
                 HTTPStatus.BAD_REQUEST,
             )
             return

@@ -347,8 +347,8 @@ function normalizeWord(value = "") {
   return value
     .trim()
     .replaceAll("’", "'")
-    .replace(/^[^A-Za-z]+/, "")
-    .replace(/[^A-Za-z' -]+$/, "")
+    .replace(/^[^A-Za-z0-9]+/, "")
+    .replace(/[^A-Za-z0-9' -]+$/, "")
     .replace(/\s+/g, " ");
 }
 
@@ -2593,6 +2593,472 @@ function pronounceSelection() {
   });
 }
 
+const IRREGULAR_FORM_BASES = {
+  went: "go",
+  gone: "go",
+  was: "be",
+  were: "be",
+  been: "be",
+  had: "have",
+  did: "do",
+  done: "do",
+  made: "make",
+  said: "say",
+  found: "find",
+  thought: "think",
+  brought: "bring",
+  bought: "buy",
+  caught: "catch",
+  taught: "teach",
+  took: "take",
+  taken: "take",
+  came: "come",
+  saw: "see",
+  seen: "see",
+  knew: "know",
+  known: "know",
+  gave: "give",
+  given: "give",
+  left: "leave",
+  felt: "feel",
+  kept: "keep",
+  slept: "sleep",
+  ran: "run",
+  began: "begin",
+  begun: "begin",
+  drank: "drink",
+  drunk: "drink",
+  swam: "swim",
+  swum: "swim",
+  wrote: "write",
+  written: "write",
+  spoke: "speak",
+  spoken: "speak",
+  broke: "break",
+  broken: "break",
+  chose: "choose",
+  chosen: "choose",
+  drove: "drive",
+  driven: "drive",
+  ate: "eat",
+  eaten: "eat",
+  fell: "fall",
+  fallen: "fall",
+  flew: "fly",
+  flown: "fly",
+  grew: "grow",
+  grown: "grow",
+  threw: "throw",
+  thrown: "throw",
+  wore: "wear",
+  worn: "wear",
+  won: "win",
+  lost: "lose",
+  paid: "pay",
+  met: "meet",
+  sent: "send",
+  spent: "spend",
+  built: "build",
+  held: "hold",
+  told: "tell",
+  sold: "sell",
+  stood: "stand",
+  understood: "understand",
+  lying: "lie",
+  dying: "die",
+  tying: "tie",
+};
+
+const COMMON_FORM_BASES = {
+  preserving: "preserve",
+  making: "make",
+  taking: "take",
+  writing: "write",
+  using: "use",
+  dancing: "dance",
+  changing: "change",
+  closing: "close",
+  creating: "create",
+  increasing: "increase",
+  arguing: "argue",
+  continuing: "continue",
+  producing: "produce",
+  choosing: "choose",
+  driving: "drive",
+  giving: "give",
+  having: "have",
+  living: "live",
+  loving: "love",
+  moving: "move",
+  saving: "save",
+  serving: "serve",
+  sharing: "share",
+  smiling: "smile",
+  opening: "open",
+  walking: "walk",
+  talking: "talk",
+  visiting: "visit",
+  developing: "develop",
+  listening: "listen",
+  happening: "happen",
+  traveling: "travel",
+  cancelling: "cancel",
+  beginning: "begin",
+  running: "run",
+  stopping: "stop",
+  getting: "get",
+  putting: "put",
+  sitting: "sit",
+  swimming: "swim",
+  preserved: "preserve",
+  used: "use",
+  created: "create",
+  increased: "increase",
+  argued: "argue",
+  continued: "continue",
+  produced: "produce",
+  opened: "open",
+  walked: "walk",
+  talked: "talk",
+  visited: "visit",
+  developed: "develop",
+  listened: "listen",
+  happened: "happen",
+  travelled: "travel",
+  canceled: "cancel",
+  cancelled: "cancel",
+};
+
+const FORM_NOUN_STOPLIST = new Set([
+  "thing",
+  "king",
+  "spring",
+  "bring",
+  "sing",
+  "ring",
+  "wing",
+  "string",
+  "morning",
+  "evening",
+  "during",
+  "ceiling",
+  "building",
+  "wedding",
+  "meeting",
+  "nothing",
+  "something",
+  "anything",
+  "everything",
+  "bed",
+  "red",
+  "need",
+  "hundred",
+  "is",
+  "was",
+  "has",
+  "this",
+  "his",
+  "us",
+  "yes",
+  "news",
+  "series",
+  "business",
+  "glass",
+  "class",
+  "pass",
+  "process",
+  "access",
+  "success",
+  "address",
+  "stress",
+  "press",
+  "dress",
+  "boss",
+  "loss",
+  "cross",
+  "miss",
+  "kiss",
+  "plus",
+  "gas",
+  "bus",
+  "campus",
+  "focus",
+  "status",
+  "virus",
+  "analysis",
+  "basis",
+  "crisis",
+  "thesis",
+  "species",
+  "means",
+  "physics",
+  "mathematics",
+  "economics",
+  "politics",
+  "ethics",
+  "always",
+  "perhaps",
+  "towards",
+  "besides",
+  "across",
+  "unless",
+  "indeed",
+  "sacred",
+  "wicked",
+  "naked",
+  "rugged",
+  "beloved",
+  "aged",
+  "sterling",
+  "darling",
+  "only",
+  "early",
+  "family",
+  "likely",
+  "friendly",
+]);
+
+function analyzeWordForm(value) {
+  const word = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[’']/g, "'");
+  if (!word || word.includes(" ") || word.includes("-") || /\d/.test(word)) return null;
+  if (IRREGULAR_FORM_BASES[word]) {
+    const base = IRREGULAR_FORM_BASES[word];
+    return {
+      base,
+      suffix: "",
+      label: "不规则词形",
+      explanation: `${word} 是不规则变化形式，原形是 ${base}。`,
+    };
+  }
+  if (COMMON_FORM_BASES[word]) {
+    const base = COMMON_FORM_BASES[word];
+    const suffix = word.endsWith("ing") ? "-ing" : word.endsWith("ed") ? "-ed" : "";
+    return {
+      base,
+      suffix,
+      label: suffix === "-ing" ? "现在分词 / 动名词" : "过去式 / 过去分词",
+      explanation: `${base} 是原形；${suffix} 在这里构成${
+        suffix === "-ing" ? "现在分词或动名词" : "过去式或过去分词"
+      }。`,
+    };
+  }
+  if (FORM_NOUN_STOPLIST.has(word)) return null;
+
+  if (word.endsWith("ing") && word.length > 4) {
+    const stem = word.slice(0, -3);
+    let base = stem;
+    if (/[^aeiou]y$/.test(stem)) base = stem;
+    else if (/([b-df-hj-np-tv-z])\1$/.test(stem)) base = stem.slice(0, -1);
+    if (base.length >= 2) {
+      return {
+        base,
+        suffix: "-ing",
+        label: "现在分词 / 动名词",
+        explanation: `${base} 可能是动词原形；-ing 在这里构成现在分词或动名词。`,
+        candidates: base.endsWith("e") || base.endsWith("y") ? [base] : [base, `${base}e`],
+      };
+    }
+  }
+
+  if (word.endsWith("ied") && word.length > 4) {
+    return {
+      base: `${word.slice(0, -3)}y`,
+      suffix: "-ed",
+      label: "过去式 / 过去分词",
+      explanation: `以辅音字母 + y 结尾的动词，变 y 为 i 再加 -ed；原形是 ${word.slice(0, -3)}y。`,
+    };
+  }
+  if (word.endsWith("ed") && word.length > 4) {
+    const stem = word.slice(0, -2);
+    let base = stem;
+    if (/([b-df-hj-np-tv-z])\1$/.test(stem)) base = stem.slice(0, -1);
+    else if (/[bcdfgklmnprstvz]$/.test(stem)) base = `${stem}e`;
+    return {
+      base,
+      suffix: "-ed",
+      label: "过去式 / 过去分词",
+      explanation: `${base} 可能是动词原形；-ed 在这里构成过去式或过去分词。`,
+      candidates: base.endsWith("e") ? [base] : [base, `${base}e`],
+    };
+  }
+
+  if (word.endsWith("ies") && word.length > 3) {
+    return {
+      base: `${word.slice(0, -3)}y`,
+      suffix: "-ies",
+      label: "第三人称单数 / 复数",
+      explanation: `以辅音字母 + y 结尾的词，变 y 为 i 再加 -es；原形是 ${word.slice(0, -3)}y。`,
+    };
+  }
+  if (word.endsWith("oes") && word.length > 3) {
+    return {
+      base: word.slice(0, -2),
+      suffix: "-es",
+      label: "第三人称单数 / 复数",
+      explanation: `原形是 ${word.slice(0, -2)}；以 o 结尾的动词常加 -es。`,
+    };
+  }
+  if (word.endsWith("es") && word.length > 3) {
+    const base = word.slice(0, -2);
+    return {
+      base,
+      suffix: "-es",
+      label: "第三人称单数 / 复数",
+      explanation: `${base} 是原形；以 -ch、-sh、-s、-x、-z 结尾时通常加 -es。`,
+    };
+  }
+  if (word.endsWith("s") && word.length > 3) {
+    return {
+      base: word.slice(0, -1),
+      suffix: "-s",
+      label: "第三人称单数 / 复数",
+      explanation: `${word.slice(0, -1)} 是原形；-s 表示第三人称单数或复数。`,
+    };
+  }
+
+  const prefixes = [
+    ["un", "不、相反"],
+    ["re", "再一次、返回"],
+    ["dis", "否定、分开"],
+    ["pre", "在……之前"],
+    ["inter", "在……之间"],
+    ["trans", "跨越、转变"],
+    ["sub", "在下面、次级"],
+    ["over", "过度、在上方"],
+    ["under", "不足、在下面"],
+    ["anti", "反对"],
+    ["auto", "自己"],
+    ["bio", "生命"],
+    ["geo", "地球"],
+    ["tele", "远距离"],
+    ["micro", "微小"],
+    ["multi", "多个"],
+  ];
+  for (const [prefix, meaning] of prefixes) {
+    if (word.startsWith(prefix) && word.length > prefix.length + 3) {
+      return {
+        base: word.slice(prefix.length),
+        suffix: "",
+        prefix: `${prefix}-`,
+        label: `前缀 ${prefix}-`,
+        explanation: `${prefix}- 常表示“${meaning}”；词干部分是 ${word.slice(prefix.length)}。`,
+      };
+    }
+  }
+  return null;
+}
+
+function analyzeWordRoot(value) {
+  const word = String(value || "").trim().toLowerCase();
+  if (!word || word.length < 5 || word.includes(" ") || word.includes("-")) return null;
+  const suffixes = [
+    ["tion", "名词后缀 -tion", "常把动词变成表示行为或结果的名词"],
+    ["sion", "名词后缀 -sion", "常把动词变成表示行为或结果的名词"],
+    ["ment", "名词后缀 -ment", "常表示行为、结果或状态"],
+    ["ness", "名词后缀 -ness", "常把形容词变成表示性质的名词"],
+    ["ity", "名词后缀 -ity", "常把形容词变成表示性质的名词"],
+    ["able", "形容词后缀 -able", "表示“能够被……的”"],
+    ["ible", "形容词后缀 -ible", "表示“能够被……的”"],
+    ["ful", "形容词后缀 -ful", "表示“充满……的”"],
+    ["less", "形容词后缀 -less", "表示“没有……的”"],
+    ["ous", "形容词后缀 -ous", "表示“具有……性质的”"],
+    ["ive", "形容词后缀 -ive", "常表示“具有……倾向或作用的”"],
+    ["al", "形容词后缀 -al", "常表示“与……有关的”"],
+    ["ly", "后缀 -ly", "常把形容词变成副词；也可构成形容词"],
+  ];
+  for (const [suffix, label, meaning] of suffixes) {
+    if (!word.endsWith(suffix) || word.length <= suffix.length + 3) continue;
+    let base = word.slice(0, -suffix.length);
+    if (base.endsWith("i")) base = `${base.slice(0, -1)}y`;
+    return {
+      base,
+      suffix: `-${suffix}`,
+      label,
+      explanation: `${base} + ${suffix}；${meaning}。这是按现代拼写做的构词观察。`,
+    };
+  }
+  return null;
+}
+
+function dictionaryMorphologyMarkup(data) {
+  const form = data.morphology;
+  if (!form) return "";
+  const base = form.base || data.word;
+  const baseMeaning = data.baseEntry?.meanings?.[0]?.text || "";
+  return `
+    <div class="dict-morphology">
+      <span class="dict-morphology-kicker">词形 / 词根</span>
+      <span class="dict-morphology-chain">
+        <button type="button" data-action="lookup-word" data-word="${escapeHtml(base)}">${escapeHtml(base)}</button>
+        ${form.suffix ? `<span>+ ${escapeHtml(form.suffix)}</span>` : ""}
+      </span>
+      <em>${escapeHtml(form.label || "构词")}</em>
+      ${baseMeaning ? `<small>原形释义 · ${escapeHtml(baseMeaning)}</small>` : ""}
+    </div>
+  `;
+}
+
+async function enrichWordForm(data, request) {
+  const form = data.morphology;
+  if (!form?.base || form.base === String(data.word || "").toLowerCase()) return;
+  const candidates = [...new Set([form.base, ...(form.candidates || [])].filter(Boolean))];
+  for (const candidate of candidates) {
+    try {
+      const response = await fetch(`/api/dictionary?word=${encodeURIComponent(candidate)}`);
+      const base = await response.json().catch(() => ({}));
+      if (!response.ok || state.dictionary !== request) continue;
+      if (!Array.isArray(base.meanings) || !base.meanings.length) continue;
+      data.baseEntry = {
+        word: base.word || candidate,
+        meanings: base.meanings || [],
+        preview: base.preview || "",
+      };
+      data.morphology.base = base.word || candidate;
+      if (!data.etymology?.length && base.etymology?.length) data.etymology = base.etymology;
+      if (!data.forms?.length && base.forms?.length) data.forms = base.forms;
+      renderDictionaryPanel();
+      break;
+    } catch {
+      // Try the next spelling candidate.
+    }
+  }
+  try {
+    const response = await fetch(
+      `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(form.base)}`,
+    );
+    if (!response.ok) return;
+    const payload = await response.json();
+    const origin = Array.isArray(payload) ? payload.find((entry) => entry.origin)?.origin : "";
+    if (origin && !data.etymology?.length && state.dictionary === request) {
+      data.etymology = [{ lang: "EN", text: origin }];
+      renderDictionaryPanel();
+    }
+  } catch {
+    // Origin lookup is optional; morphology remains available offline.
+  }
+}
+
+async function enrichEtymology(data, word, request) {
+  if (data.etymology?.length) return;
+  try {
+    const response = await fetch(
+      `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`,
+    );
+    if (!response.ok) return;
+    const payload = await response.json();
+    const origin = Array.isArray(payload) ? payload.find((entry) => entry.origin)?.origin : "";
+    if (origin && state.dictionary === request && !data.etymology?.length) {
+      data.etymology = [{ lang: "EN", text: origin }];
+      renderDictionaryPanel();
+    }
+  } catch {
+    // The construction analysis remains available if this optional source fails.
+  }
+}
+
 /* Dictionary */
 
 function getRecentWords() {
@@ -2694,6 +3160,7 @@ function dictionaryEntryMarkup(data) {
   const examples = data.examples || [];
   const phrases = data.phrases || [];
   const etymology = data.etymology || [];
+  const rootAnalysis = data.morphology || data.rootAnalysis;
   const image = (data.images || [])[0];
   const linkedHighlight = state.dictionary?.meta?.highlightId;
   return `
@@ -2728,12 +3195,13 @@ function dictionaryEntryMarkup(data) {
               : ""
         }
       </div>
+      ${dictionaryMorphologyMarkup(data)}
       ${dictionarySaveMarkup(data, saved, linkedHighlight)}
       <div class="dict-tabs" role="tablist" aria-label="词典内容">
         ${dictionaryTab("simple", "简明", tab)}
         ${dictionaryTab("examples", `例句${examples.length ? ` ${examples.length}` : ""}`, tab)}
         ${dictionaryTab("phrases", "短语", tab)}
-        ${dictionaryTab("origin", "词源", tab)}
+        ${dictionaryTab("origin", "词根词源", tab)}
       </div>
       <div class="dict-body" role="tabpanel">
         ${
@@ -2821,7 +3289,28 @@ function dictionaryEntryMarkup(data) {
                 ${
                   etymology.length
                     ? `<div class="etymology-list">${etymology.map((item) => `<p class="etymology-item"><strong>${escapeHtml(item.lang === "zh" ? "中文" : "EN")}</strong>${escapeHtml(item.text)}</p>`).join("")}</div>`
-                    : `<p class="example-zh">这个词暂时没有返回词源信息。</p>`
+                    : `<div class="word-formation">
+                        <p><strong>构词分析</strong> ${
+                          rootAnalysis
+                            ? `${escapeHtml(rootAnalysis.base || data.word)}${rootAnalysis.suffix ? ` + ${escapeHtml(rootAnalysis.suffix)}` : ""}`
+                            : "没有明显的常见前后缀"
+                        }</p>
+                        <p>${escapeHtml(
+                          rootAnalysis?.explanation ||
+                            "词典没有收录更早的词源；可以查看原页，或先从这个词的原形和例句记忆。",
+                        )}</p>
+                        ${
+                          data.baseEntry?.meanings?.length
+                            ? `<p><strong>原形释义</strong> ${escapeHtml(
+                                data.baseEntry.meanings
+                                  .slice(0, 2)
+                                  .map((item) => `${item.pos ? `${item.pos} ` : ""}${item.text}`)
+                                  .join("；"),
+                              )}</p>`
+                            : ""
+                        }
+                        <small>词源由有道词典提供；未收录时显示构词分析。</small>
+                      </div>`
                 }
               </div>
             `
@@ -2902,8 +3391,12 @@ async function openDictionary(query, meta = {}) {
     if (state.dictionary !== request) return;
     request.status = "loaded";
     request.data = data;
+    request.data.morphology = analyzeWordForm(cleaned);
+    request.data.rootAnalysis = analyzeWordRoot(cleaned);
     addRecentWord(data.word || cleaned);
     renderDictionaryPanel();
+    enrichWordForm(request.data, request);
+    if (!request.data.morphology) enrichEtymology(request.data, cleaned, request);
   } catch (error) {
     if (state.dictionary !== request) return;
     const translated = await translateDictionaryFallback(cleaned);
@@ -2926,8 +3419,12 @@ async function openDictionary(query, meta = {}) {
         source: { name: "整词翻译备用", url: "https://translate.google.com/" },
         fallbackTranslation: true,
       };
+      request.data.morphology = analyzeWordForm(cleaned);
+      request.data.rootAnalysis = analyzeWordRoot(cleaned);
       addRecentWord(cleaned);
       renderDictionaryPanel();
+      enrichWordForm(request.data, request);
+      if (!request.data.morphology) enrichEtymology(request.data, cleaned, request);
       return;
     }
     request.status = "error";
@@ -3095,6 +3592,11 @@ function saveWordEntry(data, meta = {}) {
     sourceTitle: meta.bookTitle || existing?.sourceTitle || "",
     page: Number.isFinite(meta.page) ? meta.page : state.page,
     paragraph: Number.isFinite(meta.paragraph) ? meta.paragraph : null,
+    baseWord: data.morphology?.base || existing?.baseWord || "",
+    surfaceForm:
+      data.morphology?.base && data.morphology.base !== word
+        ? word
+        : existing?.surfaceForm || "",
     createdAt: existing?.createdAt || Date.now(),
     updatedAt: Date.now(),
     reviewCount: existing?.reviewCount || 0,
@@ -3262,6 +3764,7 @@ function wordSessionMarkup() {
       <div class="word-session-stage">
         <span class="word-session-mode">${escapeHtml(session.modeLabel)}</span>
         <h1 class="word-session-word">${escapeHtml(question.word)}</h1>
+        ${question.baseWord && question.baseWord !== question.word ? `<div class="word-session-base">原形 · ${escapeHtml(question.baseWord)}</div>` : ""}
         <div class="word-session-phonetic">
           ${question.phonetic ? `<span>/${escapeHtml(question.phonetic)}/</span>` : ""}
           <button type="button" data-audio="${escapeHtml(dictionaryAudioUrl(question.word, 2))}" data-audio-text="${escapeHtml(question.word)}" aria-label="播放发音">
@@ -3370,6 +3873,7 @@ function buildWordQuestion(entry, allWords) {
   return {
     wordId: entry.id,
     word: entry.word,
+    baseWord: entry.baseWord || "",
     phonetic: entry.phonetic || "",
     meaning: entry.meaning || "",
     sourceTitle: entry.sourceTitle || "",
@@ -3569,6 +4073,7 @@ function wordRowMarkup(item) {
       <div class="word-main">
         <strong>${escapeHtml(item.word)}</strong>
         <span>${escapeHtml(item.phonetic || "")}</span>
+        ${item.baseWord && item.baseWord !== item.word ? `<small>原形 ${escapeHtml(item.baseWord)}</small>` : ""}
       </div>
       <div class="word-meaning">${escapeHtml(item.meaning || "暂无简明释义")}</div>
       <div class="word-source">
@@ -4997,6 +5502,14 @@ function bindEvents() {
           openDictionary(actionButton.dataset.word, {
             bookId: state.currentBook.id,
             bookTitle: state.currentBook.title,
+            origin: "lookup",
+          });
+        }
+        break;
+      case "lookup-word":
+        if (actionButton.dataset.word) {
+          openDictionary(actionButton.dataset.word, {
+            ...(state.dictionary?.meta || {}),
             origin: "lookup",
           });
         }

@@ -2737,6 +2737,88 @@ svg {
   line-height: 1.5;
 }
 
+.dict-morphology {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 9px;
+  margin: 12px 0 0;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--paper);
+}
+
+.dict-morphology-kicker {
+  color: var(--clay);
+  font-size: 8px;
+  font-weight: 760;
+  letter-spacing: 0.08em;
+}
+
+.dict-morphology-chain {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  color: var(--moss);
+  font-family: var(--serif);
+  font-size: 15px;
+}
+
+.dict-morphology-chain button {
+  color: var(--moss);
+  border-bottom: 1px solid rgba(64, 91, 75, 0.35);
+  font-family: var(--serif);
+  font-size: 17px;
+  font-weight: 550;
+}
+
+.dict-morphology-chain > span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.dict-morphology em {
+  color: var(--muted);
+  font-size: 9px;
+  font-style: normal;
+}
+
+.dict-morphology small {
+  width: 100%;
+  color: var(--faint);
+  font-size: 8.5px;
+  line-height: 1.55;
+}
+
+.word-formation {
+  padding: 11px 12px;
+  border-left: 2px solid var(--highlighter);
+  background: rgba(242, 202, 84, 0.08);
+  font-size: 9.5px;
+  line-height: 1.7;
+}
+
+.word-formation p {
+  margin: 0 0 7px;
+}
+
+.word-formation p:last-of-type {
+  margin-bottom: 0;
+}
+
+.word-formation strong {
+  color: var(--moss);
+  font-weight: 700;
+}
+
+.word-formation small {
+  display: block;
+  margin-top: 8px;
+  color: var(--faint);
+  font-size: 8px;
+}
+
 @keyframes skeleton {
   50% {
     opacity: 0.5;
@@ -4065,6 +4147,14 @@ svg {
   overflow-wrap: anywhere;
 }
 
+.word-session-base {
+  margin: 3px 0 0;
+  color: var(--clay);
+  font-family: var(--serif);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
 .word-session-phonetic {
   display: flex;
   align-items: center;
@@ -4412,6 +4502,12 @@ svg {
   color: var(--muted);
   font-family: var(--serif);
   font-size: 10px;
+}
+
+.word-main small {
+  color: var(--clay);
+  font-size: 8px;
+  white-space: nowrap;
 }
 
 .word-meaning {
