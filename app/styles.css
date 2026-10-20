@@ -2237,6 +2237,33 @@ svg {
   height: 14px;
 }
 
+.reader-audio-button {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px;
+  color: var(--moss);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.reader-audio-button:hover {
+  border-color: var(--moss);
+  background: var(--paper);
+}
+
+.reader-audio-button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.speech-stop[hidden] {
+  display: none;
+}
+
 .reader-text {
   color: #252823;
   font-family: var(--reading);
@@ -2318,9 +2345,39 @@ svg {
   height: 12px;
 }
 
+.read-aloud-button {
+  display: inline-flex;
+  height: 23px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  color: var(--moss);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.read-aloud-button:hover,
+.read-aloud-button.is-speaking {
+  border-color: rgba(64, 91, 75, 0.28);
+  background: rgba(111, 143, 99, 0.12);
+}
+
+.read-aloud-button svg {
+  width: 12px;
+  height: 12px;
+}
+
 .translation-block.is-read {
   border-left: 2px solid rgba(111, 143, 99, 0.35);
   padding-left: 8px;
+}
+
+.translation-block.is-speaking {
+  outline: 2px solid rgba(242, 202, 84, 0.5);
+  outline-offset: 3px;
+  background: rgba(242, 202, 84, 0.06);
 }
 
 .translation-toggle {
@@ -7052,11 +7109,13 @@ svg {
   }
 
   .reader-tools-left > span,
-  .reader-page-translation span {
+  .reader-page-translation span,
+  .reader-audio-button span {
     display: none;
   }
 
-  .reader-page-translation {
+  .reader-page-translation,
+  .reader-audio-button {
     width: 28px;
     justify-content: center;
     padding: 0;

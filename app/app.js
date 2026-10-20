@@ -640,6 +640,7 @@ async function saveImportToServer(item) {
 }
 
 async function handleRoute() {
+  stopSpeech();
   hideSelectionToolbar();
   if (state.view === "reading" && state.currentBook && !state.readerLoading) {
     state.readProgressPercent = computeReadingPercent();
@@ -1351,6 +1352,7 @@ function startMagazineScreenshot(linkId) {
 /* Reader */
 
 async function openReader(bookId, options = {}) {
+  stopSpeech();
   let book = findBook(bookId);
   if (!book && bookId.startsWith("import-")) {
     try {
@@ -1947,6 +1949,17 @@ function renderReaderShell() {
                     </button>`
                   : ""
               }
+              ${
+                canRead && !state.readerLoading
+                  ? `<button class="reader-audio-button" type="button" data-action="toggle-full-read-aloud" aria-label="朗读全文" title="朗读全文">
+                      <svg><use href="#i-volume"></use></svg>
+                      <span>朗读全文</span>
+                    </button>
+                    <button class="reader-tool-button speech-stop" type="button" data-action="stop-read-aloud" aria-label="停止朗读" title="停止朗读" hidden>
+                      <svg><use href="#i-x"></use></svg>
+                    </button>`
+                  : ""
+              }
             </div>
             <div class="reader-tools-right">
               <div class="reader-filter-wrap">
@@ -1987,6 +2000,7 @@ function renderReaderShell() {
     </section>
   `;
   updateReaderProgressUi();
+  updateSpeechUi();
 }
 
 function readerLoadingMarkup() {
@@ -2041,6 +2055,10 @@ function readerTextMarkup() {
             <button class="read-check ${read ? "is-read" : ""}" type="button" data-action="toggle-read-paragraph" data-paragraph-index="${index}" aria-pressed="${read}">
               <svg><use href="#i-check"></use></svg>
               <span>${read ? "这段已读" : "读完这段"}</span>
+            </button>
+            <button class="read-aloud-button" type="button" data-action="read-paragraph-aloud" data-paragraph-index="${index}" aria-label="朗读这一段">
+              <svg><use href="#i-volume"></use></svg>
+              <span>朗读</span>
             </button>
             <button class="translation-toggle ${expanded ? "is-open" : ""}" type="button" data-action="toggle-translation" data-paragraph-index="${index}" aria-expanded="${expanded}">
               <svg><use href="#i-translate"></use></svg>
@@ -2311,6 +2329,7 @@ function renderReaderPage() {
   if (pageNumber) pageNumber.textContent = `${state.page + 1} / ${state.totalPages}`;
   updateReaderProgressUi();
   updatePageTranslationButton();
+  updateSpeechUi();
   saveProgress();
   hideSelectionToolbar();
 }
@@ -3534,6 +3553,14 @@ function switchDictionaryTab(tab) {
 }
 
 let activePronunciationAudio = null;
+let speechState = {
+  mode: null,
+  paragraphIndex: null,
+  paused: false,
+  token: 0,
+  queue: [],
+  queueIndex: 0,
+};
 
 function audioTextFromUrl(url) {
   try {
@@ -3610,6 +3637,193 @@ function speakWithBrowser(text) {
   });
 }
 
+function chooseAmericanVoice(synth) {
+  const voices = synth.getVoices();
+  const preferredNames = /samantha|aria|jenny|guy|microsoft.*(aria|guy)|google us english/i;
+  return (
+    voices.find((voice) => /en[-_]US/i.test(voice.lang) && preferredNames.test(voice.name)) ||
+    voices.find((voice) => /en[-_]US/i.test(voice.lang)) ||
+    voices.find((voice) => /^en/i.test(voice.lang)) ||
+    null
+  );
+}
+
+function makeReadUtterance(text) {
+  const utterance = new SpeechSynthesisUtterance(
+    String(text || "")
+      .replace(/[_*#]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim(),
+  );
+  utterance.lang = "en-US";
+  utterance.rate = 0.94;
+  utterance.pitch = 1;
+  utterance.volume = 1;
+  const synth = window.speechSynthesis;
+  const voice = chooseAmericanVoice(synth);
+  if (voice) utterance.voice = voice;
+  return utterance;
+}
+
+function updateSpeechUi() {
+  const fullButton = document.querySelector('[data-action="toggle-full-read-aloud"]');
+  const stopButton = document.querySelector('[data-action="stop-read-aloud"]');
+  if (fullButton) {
+    const label = fullButton.querySelector("span");
+    fullButton.classList.toggle("is-speaking", speechState.mode === "full");
+    if (label) {
+      label.textContent =
+        speechState.mode === "full"
+          ? speechState.paused
+            ? "继续朗读"
+            : "暂停朗读"
+          : "朗读全文";
+    }
+    fullButton.setAttribute(
+      "aria-label",
+      speechState.mode === "full" ? (speechState.paused ? "继续朗读全文" : "暂停朗读全文") : "朗读全文",
+    );
+  }
+  if (stopButton) stopButton.hidden = !speechState.mode;
+  document.querySelectorAll('[data-action="read-paragraph-aloud"]').forEach((button) => {
+    const index = Number(button.dataset.paragraphIndex);
+    const active = speechState.paragraphIndex === index && Boolean(speechState.mode);
+    button.classList.toggle("is-speaking", active);
+    const label = button.querySelector("span");
+    if (label) label.textContent = active ? (speechState.paused ? "继续" : "暂停") : "朗读";
+  });
+  document.querySelectorAll(".translation-block[data-translation-index]").forEach((block) => {
+    block.classList.toggle(
+      "is-speaking",
+      speechState.paragraphIndex === Number(block.dataset.translationIndex) && Boolean(speechState.mode),
+    );
+  });
+}
+
+function stopSpeech() {
+  speechState.token += 1;
+  speechState.mode = null;
+  speechState.paragraphIndex = null;
+  speechState.paused = false;
+  speechState.queue = [];
+  speechState.queueIndex = 0;
+  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+  updateSpeechUi();
+}
+
+function speakParagraphAloud(index) {
+  const synth = "speechSynthesis" in window ? window.speechSynthesis : null;
+  if (!synth) {
+    showToast("这个浏览器暂时不支持英语朗读。", { icon: "i-volume" });
+    return;
+  }
+  if (speechState.mode === "paragraph" && speechState.paragraphIndex === index) {
+    if (speechState.paused) {
+      synth.resume();
+      speechState.paused = false;
+    } else {
+      synth.pause();
+      speechState.paused = true;
+    }
+    updateSpeechUi();
+    return;
+  }
+  stopSpeech();
+  const text = state.paragraphs[index] || "";
+  if (!text.trim()) return;
+  const token = speechState.token;
+  speechState.mode = "paragraph";
+  speechState.paragraphIndex = index;
+  speechState.paused = false;
+  const utterance = makeReadUtterance(text);
+  utterance.onend = () => {
+    if (speechState.token !== token) return;
+    speechState.mode = null;
+    speechState.paragraphIndex = null;
+    updateSpeechUi();
+  };
+  utterance.onerror = () => {
+    if (speechState.token !== token) return;
+    stopSpeech();
+    showToast("这一段暂时无法朗读。", { icon: "i-volume" });
+  };
+  synth.speak(utterance);
+  updateSpeechUi();
+}
+
+function speakNextFull(token) {
+  if (speechState.token !== token || speechState.mode !== "full") return;
+  if (speechState.queueIndex >= speechState.queue.length) {
+    speechState.mode = null;
+    speechState.paragraphIndex = null;
+    updateSpeechUi();
+    showToast("全文朗读结束。", { icon: "i-check" });
+    return;
+  }
+  const item = speechState.queue[speechState.queueIndex];
+  speechState.paragraphIndex = item.index;
+  const position = state.visibleParagraphs.indexOf(item.index);
+  if (position >= 0) {
+    const page = Math.floor(position / PAGE_SIZE);
+    if (page !== state.page) goToPage(page);
+  }
+  const utterance = makeReadUtterance(item.text);
+  utterance.onend = () => {
+    if (speechState.token !== token) return;
+    speechState.queueIndex += 1;
+    speakNextFull(token);
+  };
+  utterance.onerror = () => {
+    if (speechState.token !== token) return;
+    stopSpeech();
+    showToast("全文朗读中断了。", { icon: "i-volume" });
+  };
+  window.speechSynthesis.speak(utterance);
+  updateSpeechUi();
+}
+
+function startFullSpeech() {
+  const synth = "speechSynthesis" in window ? window.speechSynthesis : null;
+  if (!synth) {
+    showToast("这个浏览器暂时不支持英语朗读。", { icon: "i-volume" });
+    return;
+  }
+  stopSpeech();
+  const startIndex = state.visibleParagraphs[0] ?? 0;
+  const position = Math.max(0, state.visibleParagraphs.indexOf(startIndex));
+  if (state.page !== 0) goToPage(0);
+  const queue = state.visibleParagraphs
+    .slice(Math.max(0, position))
+    .filter((index) => !isChapterHeading(state.paragraphs[index] || ""))
+    .map((index) => ({ index, text: state.paragraphs[index] || "" }))
+    .filter((item) => item.text.trim());
+  if (!queue.length) {
+    showToast("这一页没有可朗读的正文。", { icon: "i-volume" });
+    return;
+  }
+  speechState.mode = "full";
+  speechState.queue = queue;
+  speechState.queueIndex = 0;
+  speechState.paused = false;
+  speakNextFull(speechState.token);
+}
+
+function toggleFullSpeech() {
+  const synth = "speechSynthesis" in window ? window.speechSynthesis : null;
+  if (speechState.mode === "full" && synth) {
+    if (speechState.paused) {
+      synth.resume();
+      speechState.paused = false;
+    } else {
+      synth.pause();
+      speechState.paused = true;
+    }
+    updateSpeechUi();
+    return;
+  }
+  startFullSpeech();
+}
+
 async function playAudio(url, text = "") {
   const spokenText = (
     text ||
@@ -3622,6 +3836,7 @@ async function playAudio(url, text = "") {
     showToast("这个词暂时没有可用发音。", { icon: "i-volume" });
     return false;
   }
+  stopSpeech();
   if (activePronunciationAudio) {
     activePronunciationAudio.pause();
     activePronunciationAudio.removeAttribute("src");
@@ -5598,6 +5813,15 @@ function bindEvents() {
         break;
       case "toggle-read-paragraph":
         toggleReadParagraph(Number(actionButton.dataset.paragraphIndex));
+        break;
+      case "read-paragraph-aloud":
+        speakParagraphAloud(Number(actionButton.dataset.paragraphIndex));
+        break;
+      case "toggle-full-read-aloud":
+        toggleFullSpeech();
+        break;
+      case "stop-read-aloud":
+        stopSpeech();
         break;
       case "retry-translation": {
         const index = Number(actionButton.dataset.paragraphIndex);
