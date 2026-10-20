@@ -7,10 +7,213 @@ const STORAGE = {
   readerSize: "margin_reader_size_v1",
   selectedColor: "margin_selected_color_v1",
   noiseFilter: "margin_noise_filter_v1",
+  magazineLinks: "margin_magazine_links_v1",
 };
 
 const PAGE_SIZE = 55;
 const CATEGORIES = ["全部", "经典", "奇幻", "科幻", "悬疑", "爱情", "历史", "成长", "惊悚", "恐怖", "文学"];
+const MAGAZINE_PUBLICATIONS = [
+  {
+    name: "The Economist",
+    zh: "经济学人",
+    aliases: ["economist", "经济学人"],
+    url: "https://www.economist.com",
+    freeUrl: "https://www.economist.com/latest",
+    access: "paid",
+    note: "多数深度文章需要订阅；首页、播客和部分栏目可以先免费看。",
+    level: "雅思 / 六级",
+  },
+  {
+    name: "The Guardian",
+    zh: "卫报",
+    aliases: ["guardian", "卫报"],
+    url: "https://www.theguardian.com/international",
+    freeUrl: "https://www.theguardian.com/international",
+    access: "free",
+    note: "新闻与评论通常可以直接阅读；部分内容会邀请注册或捐助。",
+    level: "雅思 / 六级",
+  },
+  {
+    name: "New Scientist",
+    zh: "新科学家",
+    aliases: ["new scientist", "newscientist", "新科学家"],
+    url: "https://www.newscientist.com",
+    freeUrl: "https://www.newscientist.com/",
+    access: "metered",
+    note: "部分文章免费，深度内容通常需要订阅。",
+    level: "雅思 / 六级",
+  },
+  {
+    name: "National Geographic",
+    zh: "国家地理",
+    aliases: ["national geographic", "natgeo", "国家地理"],
+    url: "https://www.nationalgeographic.com",
+    freeUrl: "https://www.nationalgeographic.com/",
+    access: "metered",
+    note: "部分图文免费，完整杂志内容通常需要订阅。",
+    level: "雅思 / 六级",
+  },
+  {
+    name: "The Atlantic",
+    zh: "大西洋月刊",
+    aliases: ["atlantic", "大西洋月刊"],
+    url: "https://www.theatlantic.com",
+    freeUrl: "https://www.theatlantic.com/",
+    access: "metered",
+    note: "每月有免费文章额度，超过后需要订阅。",
+    level: "雅思 / 六级",
+  },
+  {
+    name: "TIME",
+    zh: "时代周刊",
+    aliases: ["time", "时代周刊", "时代"],
+    url: "https://time.com",
+    freeUrl: "https://time.com/",
+    access: "metered",
+    note: "新闻和部分榜单可免费看，长文可能有订阅限制。",
+    level: "六级 / 雅思",
+  },
+  {
+    name: "TIME for Kids",
+    zh: "时代周刊少儿版",
+    aliases: ["time for kids", "timeforkids", "时代少儿"],
+    url: "https://www.timeforkids.com",
+    freeUrl: "https://www.timeforkids.com/",
+    access: "free",
+    note: "面向青少年的新闻与科普，通常可以直接阅读。",
+    level: "四级",
+  },
+  {
+    name: "Scientific American",
+    zh: "科学美国人",
+    aliases: ["scientific american", "scientificamerican", "科学美国人"],
+    url: "https://www.scientificamerican.com",
+    freeUrl: "https://www.scientificamerican.com/",
+    access: "metered",
+    note: "部分文章免费，完整专题和过刊通常需要订阅。",
+    level: "六级 / 雅思",
+  },
+  {
+    name: "The Daily Telegraph",
+    zh: "每日电讯报",
+    aliases: ["telegraph", "daily telegraph", "每日电讯报"],
+    url: "https://www.telegraph.co.uk",
+    freeUrl: "https://www.telegraph.co.uk/",
+    access: "paid",
+    note: "多数文章有订阅墙，首页部分新闻可以先看。",
+    level: "六级 / 雅思",
+  },
+  {
+    name: "Christian Science Monitor",
+    zh: "基督教科学箴言报",
+    aliases: ["christian science monitor", "csmonitor", "箴言报"],
+    url: "https://www.csmonitor.com",
+    freeUrl: "https://www.csmonitor.com/",
+    access: "metered",
+    note: "部分内容免费，深度报道可能要求订阅。",
+    level: "六级 / 雅思",
+  },
+  {
+    name: "BBC Learning English",
+    zh: "BBC 英语学习",
+    aliases: ["bbc learning english", "bbc", "bbc英语"],
+    url: "https://www.bbc.co.uk/learningenglish",
+    freeUrl: "https://www.bbc.co.uk/learningenglish",
+    access: "free",
+    note: "专门面向英语学习者，课程、音频和文本通常免费。",
+    level: "四级 / 六级",
+  },
+  {
+    name: "USA Today",
+    zh: "今日美国",
+    aliases: ["usa today", "usatoday", "今日美国"],
+    url: "https://www.usatoday.com",
+    freeUrl: "https://www.usatoday.com",
+    access: "free",
+    note: "多数新闻可以直接阅读；部分栏目可能要求注册。",
+    level: "四级",
+  },
+  {
+    name: "Reader's Digest",
+    zh: "读者文摘",
+    aliases: ["reader's digest", "readers digest", "rd.com", "读者文摘"],
+    url: "https://www.rd.com",
+    freeUrl: "https://www.rd.com",
+    access: "free",
+    note: "大量生活、健康与趣味文章可免费阅读。",
+    level: "四级",
+  },
+  {
+    name: "The Conversation",
+    zh: "对话",
+    aliases: ["the conversation", "theconversation", "对话"],
+    url: "https://theconversation.com",
+    freeUrl: "https://theconversation.com",
+    access: "free",
+    note: "学者撰写的解释性文章，通常采用开放许可，可免费阅读。",
+    level: "六级 / 雅思",
+  },
+  {
+    name: "NPR",
+    zh: "美国国家公共电台",
+    aliases: ["npr", "美国国家公共电台"],
+    url: "https://www.npr.org",
+    freeUrl: "https://www.npr.org",
+    access: "free",
+    note: "新闻、文化与时事报道通常可以免费阅读和收听。",
+    level: "六级 / 雅思",
+  },
+  {
+    name: "BBC News",
+    zh: "BBC 新闻",
+    aliases: ["bbc news", "bbc新闻"],
+    url: "https://www.bbc.com/news",
+    freeUrl: "https://www.bbc.com/news",
+    access: "free",
+    note: "多数国际新闻可免费阅读，部分地区可能受访问限制。",
+    level: "四级 / 六级",
+  },
+  {
+    name: "The New York Times",
+    zh: "纽约时报",
+    aliases: ["new york times", "nytimes", "纽约时报"],
+    url: "https://www.nytimes.com",
+    freeUrl: "https://www.nytimes.com/",
+    access: "paid",
+    note: "有少量免费文章额度，长期阅读通常需要订阅。",
+    level: "雅思 / 六级",
+  },
+  {
+    name: "The Washington Post",
+    zh: "华盛顿邮报",
+    aliases: ["washington post", "washingtonpost", "华盛顿邮报"],
+    url: "https://www.washingtonpost.com",
+    freeUrl: "https://www.washingtonpost.com/",
+    access: "paid",
+    note: "部分文章免费，完整访问通常需要订阅。",
+    level: "雅思 / 六级",
+  },
+  {
+    name: "Wired",
+    zh: "连线",
+    aliases: ["wired", "连线"],
+    url: "https://www.wired.com",
+    freeUrl: "https://www.wired.com/",
+    access: "metered",
+    note: "科技与商业文章部分免费，深度内容可能收费。",
+    level: "六级 / 雅思",
+  },
+  {
+    name: "Smithsonian Magazine",
+    zh: "史密森尼杂志",
+    aliases: ["smithsonian", "史密森尼"],
+    url: "https://www.smithsonianmag.com",
+    freeUrl: "https://www.smithsonianmag.com/",
+    access: "free",
+    note: "历史、科学、艺术与文化文章通常可以免费阅读。",
+    level: "六级 / 雅思",
+  },
+];
 const COVER_PALETTES = [
   ["#435f50", "#fff8e8"],
   ["#2f3e53", "#f4e4b2"],
@@ -55,6 +258,16 @@ const state = {
   dictionary: null,
   dictionaryTab: "simple",
   wordbookQuery: "",
+  wordSession: null,
+  wordSessionConfig: { count: 20, mode: "mixed" },
+  magazines: [],
+  magazineQuery: "",
+  magazineLevel: "all",
+  magazineVisible: 24,
+  magazineLookup: null,
+  magazineLinkDraft: null,
+  magazineLinks: safeRead(STORAGE.magazineLinks, []),
+  pendingMagazine: null,
   metadataTarget: null,
   imports: safeRead(STORAGE.imports, []),
   pendingBookTitle: "",
@@ -161,7 +374,7 @@ function coverPalette(book) {
 
 function coverFallbackHtml(book, extraClass = "") {
   const [background, ink] = coverPalette(book);
-  const series = book.available ? "MARGIN · FULL TEXT" : book.id.startsWith("import-") ? "IMPORTED TEXT" : "MARGIN · CATALOG";
+  const series = book.available ? "ELEVEN · FULL TEXT" : book.id.startsWith("import-") ? "IMPORTED TEXT" : "ELEVEN · CATALOG";
   return `
     <div class="typographic-cover ${extraClass}" style="--cover-bg:${background};--cover-ink:${ink}">
       <span class="cover-series">${escapeHtml(series)}</span>
@@ -177,7 +390,12 @@ function coverImageHtml(book) {
 }
 
 function findBook(bookId) {
-  return state.books.find((book) => book.id === bookId) || state.imports.find((book) => book.id === bookId) || null;
+  return (
+    state.books.find((book) => book.id === bookId) ||
+    state.imports.find((book) => book.id === bookId) ||
+    state.magazines.find((book) => book.id === bookId) ||
+    null
+  );
 }
 
 function activeImports() {
@@ -265,7 +483,10 @@ function setView(view) {
 
 function updateTopbar(context) {
   if (context) els.topbarContext.textContent = context;
-  els.topbarCount.textContent = `${state.books.length || 620} 本`;
+  els.topbarCount.textContent =
+    state.view === "magazines"
+      ? `${state.magazines.length || 120} 篇`
+      : `${state.books.length || 620} 本`;
 }
 
 function navigate(route) {
@@ -283,6 +504,18 @@ async function init() {
     if (!response.ok) throw new Error("Book catalog unavailable");
     const payload = await response.json();
     state.books = payload.books || [];
+    const magazinePayload = await fetch("data/magazines.json")
+      .then((result) => (result.ok ? result.json() : { articles: [] }))
+      .catch(() => ({ articles: [] }));
+    state.magazines = (magazinePayload.articles || []).map((article) => ({
+      ...article,
+      kind: "magazine",
+      available: true,
+      primary: "外刊精读",
+      author: article.source || "Eleven 精读编辑部",
+      tags: [article.levelZh || "", article.topic || ""].filter(Boolean),
+      cover: "",
+    }));
     const localImports = sanitizeImports(safeRead(STORAGE.imports, []));
     state.imports = localImports;
     syncImportsFromServer(localImports)
@@ -416,7 +649,7 @@ async function handleRoute() {
   if (hash === "#/library") {
     state.view = "library";
     setView("library");
-    updateTopbar(`我的阅读室 · ${state.books.length} 本英语小说`);
+    updateTopbar(`Eleven 精读书库 · ${state.books.length} 本英语小说`);
     renderLibrary();
     window.scrollTo({ top: 0, behavior: "instant" });
     return;
@@ -430,6 +663,15 @@ async function handleRoute() {
     } else {
       navigate("#/library");
     }
+    return;
+  }
+
+  if (hash === "#/magazines") {
+    state.view = "magazines";
+    setView("magazines");
+    updateTopbar("Eleven 外刊精读 · 四级 / 六级 / 雅思");
+    renderMagazines();
+    window.scrollTo({ top: 0, behavior: "instant" });
     return;
   }
 
@@ -492,8 +734,9 @@ function renderLibrary() {
     <section class="library-view">
       <div class="library-hero">
         <div class="hero-copy">
-          <div class="hero-kicker">English novels · close reading</div>
-          <h1 class="hero-title">把小说，<br />读成<span class="marked-word">自己的。</span></h1>
+          <div class="hero-kicker">The weekly reading edition</div>
+          <h1 class="hero-title">Eleven<br /><span class="marked-word">精读书库。</span></h1>
+          <p class="hero-motto">把小说，读成自己的。</p>
           <p class="hero-lede">
             <strong>${state.books.length} 本公版英语小说</strong>，全部可以在站内免费读全文。
             选中一个词，标记它，也留住它；拖进一页文章截图，文字也会回到同一个阅读器。
@@ -717,6 +960,377 @@ function refreshCatalog() {
   });
 }
 
+/* Magazines */
+
+function magazineAccessMeta(access) {
+  const map = {
+    free: { label: "免费", className: "is-free" },
+    metered: { label: "部分免费", className: "is-metered" },
+    paid: { label: "付费", className: "is-paid" },
+    unknown: { label: "以官网为准", className: "is-unknown" },
+  };
+  return map[access] || map.unknown;
+}
+
+function findPublication(query) {
+  const needle = String(query || "").trim().toLowerCase();
+  if (!needle) return null;
+  return (
+    MAGAZINE_PUBLICATIONS.find((item) => {
+      const names = [item.name, item.zh, ...(item.aliases || [])].map((name) =>
+        String(name).toLowerCase(),
+      );
+      return names.some((name) => name === needle || name.includes(needle) || needle.includes(name));
+    }) || null
+  );
+}
+
+function magazineHost(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "外部链接";
+  }
+}
+
+function magazineSearchLinks(query, publication) {
+  const encoded = encodeURIComponent(query);
+  const links = [
+    { label: "百度搜索", url: `https://www.baidu.com/s?wd=${encoded}` },
+    { label: "Bing 搜索", url: `https://www.bing.com/search?q=${encoded}` },
+    { label: "Google 搜索", url: `https://www.google.com/search?q=${encoded}` },
+  ];
+  if (publication) {
+    links.unshift({ label: "打开官网", url: publication.url });
+    if (publication.freeUrl) links.splice(1, 0, { label: "免费入口", url: publication.freeUrl });
+    links.push({
+      label: "站内搜这篇",
+      url: `https://www.google.com/search?q=${encodeURIComponent(`site:${magazineHost(publication.url)} ${query}`)}`,
+    });
+  }
+  return links;
+}
+
+function runMagazineLookup(query) {
+  const cleaned = String(query || "").trim();
+  if (!cleaned) {
+    state.magazineLookup = null;
+    renderMagazines();
+    return;
+  }
+  const needle = cleaned.toLowerCase();
+  const publication = findPublication(cleaned);
+  const articles = state.magazines
+    .filter((article) =>
+      [article.title, article.titleZh, article.reference, article.topic, article.summary]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(needle)),
+    )
+    .slice(0, 6);
+  state.magazineLookup = {
+    query: cleaned,
+    publication,
+    articles,
+    links: magazineSearchLinks(cleaned, publication),
+  };
+  state.magazineQuery = cleaned;
+  state.magazineVisible = 24;
+  renderMagazines();
+}
+
+function magazineLookupMarkup(lookup) {
+  if (!lookup) {
+    return `
+      <div class="magazine-lookup-empty">
+        <span>搜索提示</span>
+        <p>可以输入刊名（如 The Economist / 经济学人），也可以输入文章标题。找不到时会给官网和搜索引擎入口，不会假装有全文。</p>
+      </div>
+    `;
+  }
+  const publication = lookup.publication;
+  const access = magazineAccessMeta(publication?.access || "unknown");
+  return `
+    <div class="magazine-lookup-results">
+      ${
+        publication
+          ? `
+            <div class="magazine-pub-result">
+              <div class="magazine-pub-head">
+                <div>
+                  <span class="magazine-result-kicker">MATCHED PUBLICATION</span>
+                  <h3>${escapeHtml(publication.name)}</h3>
+                  <p>${escapeHtml(publication.zh)} · ${escapeHtml(publication.level)}</p>
+                </div>
+                <span class="magazine-access ${access.className}">${access.label}</span>
+              </div>
+              <p class="magazine-pub-note">${escapeHtml(publication.note)}</p>
+              <div class="magazine-search-actions">
+                ${lookup.links
+                  .map(
+                    (link) =>
+                      `<a href="${escapeHtml(link.url)}" target="_blank" rel="noreferrer">${escapeHtml(link.label)}<svg><use href="#i-external"></use></svg></a>`,
+                  )
+                  .join("")}
+              </div>
+            </div>
+          `
+          : ""
+      }
+      ${
+        lookup.articles.length
+          ? `<div class="magazine-lookup-articles"><h3>站内马上能读的精读</h3><div class="magazine-mini-grid">${lookup.articles
+              .map((article) => magazineCardMarkup(article, true))
+              .join("")}</div></div>`
+          : ""
+      }
+      ${
+        !publication && !lookup.articles.length
+          ? `<div class="magazine-no-result">
+              <strong>还没有直接匹配到这本刊或这篇文章。</strong>
+              <p>可以先打开搜索链接确认来源；找到能访问的页面后，把链接和备注存到「我的外刊链接」，再用截图精读导入正文。</p>
+            </div>`
+          : ""
+      }
+      <div class="magazine-lookup-footer">
+        <div class="magazine-search-actions">
+          ${lookup.links
+            .map(
+              (link) =>
+                `<a href="${escapeHtml(link.url)}" target="_blank" rel="noreferrer">${escapeHtml(link.label)}<svg><use href="#i-external"></use></svg></a>`,
+            )
+            .join("")}
+        </div>
+        <button class="button-secondary" type="button" data-action="open-magazine-link-dialog" data-prefill-query="${escapeHtml(lookup.query)}" data-prefill-source="${escapeHtml(publication?.name || "")}" data-prefill-level="${escapeHtml(publication?.level || "")}">
+          把这篇存为我的外刊
+        </button>
+      </div>
+      <p class="magazine-lookup-note">付费状态按刊物常规政策标注，具体以官网当前页面为准；站内不会绕过付费墙。</p>
+    </div>
+  `;
+}
+
+function magazineCardMarkup(article, compact = false) {
+  return `
+    <article class="magazine-card ${compact ? "is-compact" : ""}">
+      <div class="magazine-card-top">
+        <span class="magazine-level ${article.level.toLowerCase()}">${escapeHtml(article.levelZh)}</span>
+        <span>${escapeHtml(article.reference)}</span>
+      </div>
+      <h2>${escapeHtml(article.title)}</h2>
+      <p class="magazine-card-zh">${escapeHtml(article.titleZh)}</p>
+      <p class="magazine-card-summary">${escapeHtml(article.summary)}</p>
+      <div class="magazine-card-meta">
+        <span>${escapeHtml(article.topic)}</span>
+        <span>${article.wordCount || 0} words</span>
+        <span>原创分级</span>
+      </div>
+      <div class="magazine-card-actions">
+        <button type="button" data-action="open-magazine" data-magazine-id="${escapeHtml(article.id)}">
+          开始精读
+          <svg><use href="#i-arrow"></use></svg>
+        </button>
+        <a href="${escapeHtml(article.sourceUrl)}" target="_blank" rel="noreferrer">参考官网<svg><use href="#i-external"></use></svg></a>
+      </div>
+    </article>
+  `;
+}
+
+function magazineLinkMarkup(link) {
+  const access = magazineAccessMeta(link.access);
+  return `
+    <article class="magazine-link-card">
+      <div class="magazine-link-top">
+        <span class="magazine-access ${access.className}">${access.label}</span>
+        <span>${escapeHtml(link.level || "未标注难度")}</span>
+      </div>
+      <h3>${escapeHtml(link.title || "未命名外刊")}</h3>
+      ${link.titleZh ? `<p class="magazine-link-zh">${escapeHtml(link.titleZh)}</p>` : ""}
+      <div class="magazine-link-meta">${escapeHtml(link.source || "我的外刊")} · ${escapeHtml(magazineHost(link.url))}</div>
+      ${link.notes ? `<p class="magazine-link-notes">${escapeHtml(link.notes)}</p>` : ""}
+      <div class="magazine-link-actions">
+        <a href="${escapeHtml(link.url)}" target="_blank" rel="noreferrer">打开链接<svg><use href="#i-external"></use></svg></a>
+        <button type="button" data-action="start-magazine-screenshot" data-link-id="${escapeHtml(link.id)}">截图精读</button>
+        <button class="magazine-link-delete" type="button" data-action="delete-magazine-link" data-link-id="${escapeHtml(link.id)}" aria-label="删除这个外刊链接"><svg><use href="#i-trash"></use></svg></button>
+      </div>
+    </article>
+  `;
+}
+
+function renderMagazines() {
+  const query = state.magazineLookup ? "" : state.magazineQuery.trim().toLowerCase();
+  const filtered = state.magazines.filter((article) => {
+    const levelMatch = state.magazineLevel === "all" || article.level === state.magazineLevel;
+    const queryMatch =
+      !query ||
+      [article.title, article.titleZh, article.reference, article.topic, article.summary]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query));
+    return levelMatch && queryMatch;
+  });
+  const visible = filtered.slice(0, state.magazineVisible);
+  const links = state.magazineLinks || [];
+  els.main.innerHTML = `
+    <section class="magazine-view">
+      <header class="magazine-hero">
+        <span class="magazine-kicker">THE WEEKLY READING EDITION</span>
+        <h1><span class="magazine-wordmark">Eleven</span> 外刊书库</h1>
+        <p class="magazine-motto">跟着 Eleven 外刊，看世界。</p>
+        <div class="magazine-hero-actions">
+          <button class="button-primary" type="button" data-action="focus-magazine-search">
+            <svg><use href="#i-search"></use></svg>
+            查一本外刊
+          </button>
+          <button class="button-secondary" type="button" data-action="open-magazine-link-dialog">
+            <svg><use href="#i-plus"></use></svg>
+            添加外刊链接
+          </button>
+        </div>
+      </header>
+
+      <section class="magazine-lookup-card">
+        <div class="magazine-lookup-head">
+          <div>
+            <span class="magazine-result-kicker">FIND A MAGAZINE</span>
+            <h2>在抖音、小红书看到一本外刊？</h2>
+            <p>输入刊名或文章名，先确认它在哪本外刊、官网在哪、通常免费还是付费，再决定怎么读。</p>
+          </div>
+        </div>
+        <form class="magazine-lookup-form" id="magazine-lookup-form">
+          <svg><use href="#i-search"></use></svg>
+          <input id="magazine-lookup-input" type="search" value="${escapeHtml(state.magazineLookup?.query || state.magazineQuery)}" placeholder="例如：The Economist / 经济学人 / AI and work" autocomplete="off" />
+          <button class="button-primary" type="submit">查找链接</button>
+        </form>
+        ${magazineLookupMarkup(state.magazineLookup)}
+      </section>
+
+      <div class="magazine-filter-row">
+        <div class="magazine-level-filters">
+          ${[
+            ["all", "全部"],
+            ["CET4", "四级"],
+            ["CET6", "六级"],
+            ["IELTS", "雅思"],
+          ]
+            .map(
+              ([value, label]) =>
+                `<button class="filter-chip ${state.magazineLevel === value ? "is-active" : ""}" type="button" data-magazine-level="${value}">${label}</button>`,
+            )
+            .join("")}
+        </div>
+        <span class="magazine-count">${filtered.length} 篇 · 原创分级精读</span>
+      </div>
+      <div class="magazine-grid">
+        ${visible.map((article) => magazineCardMarkup(article)).join("")}
+      </div>
+      ${
+        filtered.length > visible.length
+          ? `<div class="magazine-load-more"><button class="button-secondary" type="button" data-action="load-more-magazines">再看 ${Math.min(24, filtered.length - visible.length)} 篇</button></div>`
+          : ""
+      }
+
+      <section class="my-magazine-links">
+        <div class="magazine-section-head">
+          <div>
+            <span class="magazine-result-kicker">MY MAGAZINE LINKS</span>
+            <h2>我的外刊链接</h2>
+            <p>把官网、文章链接和备注存在一起；点「截图精读」会把标题和来源带到导入页。</p>
+          </div>
+          <button class="button-secondary" type="button" data-action="open-magazine-link-dialog">
+            <svg><use href="#i-plus"></use></svg>
+            添加链接
+          </button>
+        </div>
+        ${
+          links.length
+            ? `<div class="magazine-link-grid">${links.map(magazineLinkMarkup).join("")}</div>`
+            : `<div class="magazine-links-empty"><p>还没有保存外刊链接。搜到一篇想读的文章后，点「把这篇存为我的外刊」。</p></div>`
+        }
+      </section>
+
+      <p class="magazine-copyright-note">
+        站内 120 篇为原创分级精读，主题参考公开刊物，不是原文转载。受版权保护的原文请通过官网阅读；需要精读时，用截图或粘贴你自己能访问的片段。
+      </p>
+    </section>
+  `;
+  els.searchInput.value = "";
+}
+
+function openMagazineLinkDialog(draft = {}) {
+  const dialog = document.querySelector("#magazine-link-dialog");
+  if (!dialog) return;
+  const set = (id, value) => {
+    const field = dialog.querySelector(id);
+    if (field) field.value = value || "";
+  };
+  const title = draft.title || draft.query || "";
+  const source = draft.source || findPublication(draft.query || "")?.name || "";
+  set("#mag-link-url", draft.url || "");
+  set("#mag-link-title", title);
+  set("#mag-link-title-zh", draft.titleZh || "");
+  set("#mag-link-source", source);
+  set("#mag-link-level", draft.level || "");
+  set("#mag-link-access", draft.access || "unknown");
+  set("#mag-link-notes", draft.notes || "");
+  state.magazineLinkDraft = draft;
+  dialog.showModal();
+}
+
+function saveMagazineLink() {
+  const dialog = document.querySelector("#magazine-link-dialog");
+  if (!dialog) return;
+  let url = dialog.querySelector("#mag-link-url")?.value.trim() || "";
+  if (url && !/^https?:\/\//i.test(url)) url = `https://${url}`;
+  try {
+    new URL(url);
+  } catch {
+    showToast("请填写一个有效的网页链接。", { icon: "i-x" });
+    return;
+  }
+  const title = dialog.querySelector("#mag-link-title")?.value.trim() || magazineHost(url);
+  const link = {
+    id: `maglink-${Date.now().toString(36)}`,
+    url,
+    title,
+    titleZh: dialog.querySelector("#mag-link-title-zh")?.value.trim() || "",
+    source: dialog.querySelector("#mag-link-source")?.value.trim() || "我的外刊",
+    level: dialog.querySelector("#mag-link-level")?.value || "",
+    access: dialog.querySelector("#mag-link-access")?.value || "unknown",
+    notes: dialog.querySelector("#mag-link-notes")?.value.trim() || "",
+    createdAt: Date.now(),
+  };
+  state.magazineLinks = [link, ...(state.magazineLinks || [])];
+  safeWrite(STORAGE.magazineLinks, state.magazineLinks);
+  dialog.close();
+  renderMagazines();
+  showToast("外刊链接已保存。", { icon: "i-check" });
+}
+
+function deleteMagazineLink(id) {
+  state.magazineLinks = (state.magazineLinks || []).filter((item) => item.id !== id);
+  safeWrite(STORAGE.magazineLinks, state.magazineLinks);
+  renderMagazines();
+  showToast("已删除这个外刊链接。", { icon: "i-trash" });
+}
+
+function startMagazineScreenshot(linkId) {
+  const link = (state.magazineLinks || []).find((item) => item.id === linkId);
+  if (!link) return;
+  state.pendingMagazine = link;
+  state.pendingBookTitle = link.title;
+  state.pendingBookSource = null;
+  state.ocr.status = "idle";
+  state.ocr.text = "";
+  state.ocr.files = [];
+  state.ocr.progress = 0;
+  state.ocr.error = "";
+  state.ocr.title = link.title;
+  state.ocr.titleZh = link.titleZh || "";
+  state.ocr.source = `${link.source}${link.level ? ` · ${link.level}` : ""}`;
+  state.ocr.notes = link.notes || "";
+  state.ocr.sourceBookId = "";
+  navigate("#/import");
+}
+
 /* Reader */
 
 async function openReader(bookId, options = {}) {
@@ -770,7 +1384,7 @@ async function openReader(bookId, options = {}) {
   const readerToken = Date.now() + Math.random();
   state.readerToken = readerToken;
   updateTopbar(book.title);
-  const canReadDirectly = book.available || book.id.startsWith("import-");
+  const canReadDirectly = book.available || book.id.startsWith("import-") || book.kind === "magazine";
   if (!options.startContent && !canReadDirectly) {
     state.readerLoading = false;
     state.readerError = "";
@@ -783,7 +1397,9 @@ async function openReader(bookId, options = {}) {
 
   try {
     let text = "";
-    if (book.id.startsWith("import-")) {
+    if (book.kind === "magazine") {
+      text = (book.paragraphs || []).join("\n\n");
+    } else if (book.id.startsWith("import-")) {
       text = book.text || "";
       if (!text) {
         const response = await fetch(`/api/imports/${encodeURIComponent(book.id)}`);
@@ -877,7 +1493,8 @@ function renderReaderCover() {
         (item.primary === book.primary || (item.tags || []).some((tag) => (book.tags || []).includes(tag))),
     )
     .slice(0, 4);
-  const canRead = book.available || book.id.startsWith("import-");
+  const canRead = book.available || book.id.startsWith("import-") || book.kind === "magazine";
+  const isMagazine = book.kind === "magazine";
   els.main.innerHTML = `
     <section class="book-landing">
       <button class="landing-back" type="button" data-action="back-library">
@@ -1215,7 +1832,8 @@ function renderReaderShell() {
   if (!book) return;
   const progressPercent = state.totalPages ? Math.round(((state.page + 1) / state.totalPages) * 100) : 0;
   const savedSize = Number(safeRead(STORAGE.readerSize, 19.5)) || 19.5;
-  const canRead = book.available || book.id.startsWith("import-");
+  const canRead = book.available || book.id.startsWith("import-") || book.kind === "magazine";
+  const isMagazine = book.kind === "magazine";
   const pageTranslationIndices = state.readerLoading ? [] : currentPageTranslationIndices();
   const pageTranslationsExpanded =
     pageTranslationIndices.length > 0 &&
@@ -1258,16 +1876,36 @@ function renderReaderShell() {
         <article class="reader-sheet" style="--reader-size:${savedSize}px;--reader-size-mobile:${Math.max(16.5, savedSize - 1.5)}px">
           <header class="reader-book-head">
             <div class="reader-eyebrow">
-              <span>${book.id.startsWith("import-") ? "Imported reading" : "English novel"}</span>
-              <span>${canRead ? (book.id.startsWith("import-") ? "已保存到后台" : "Project Gutenberg · 公版全文") : "Catalog only"}</span>
+              <span>${isMagazine ? "Weekly reading edition" : book.id.startsWith("import-") ? "Imported reading" : "English novel"}</span>
+              <span>${isMagazine ? `${escapeHtml(book.levelZh || "精读")} · 原创分级精读` : canRead ? (book.id.startsWith("import-") ? "已保存到后台" : "Project Gutenberg · 公版全文") : "Catalog only"}</span>
             </div>
             <h1 class="reader-title">${escapeHtml(book.title)}</h1>
             ${book.titleZh ? `<div class="reader-title-zh">${escapeHtml(book.titleZh)}</div>` : ""}
             <div class="reader-byline">${
-              book.id.startsWith("import-")
-                ? `来源 · ${escapeHtml(book.source || book.author || "我的导入")}`
-                : `${escapeHtml(book.author)}${book.year ? ` · ${book.year}` : ""}`
+              isMagazine
+                ? `参考 · ${escapeHtml(book.reference || "")} · ${escapeHtml(book.author || "Eleven 精读编辑部")}`
+                : book.id.startsWith("import-")
+                  ? `来源 · ${escapeHtml(book.source || book.author || "我的导入")}`
+                  : `${escapeHtml(book.author)}${book.year ? ` · ${book.year}` : ""}`
             }</div>
+            ${
+              isMagazine
+                ? `<div class="reader-magazine-note">${escapeHtml(book.note || "原创分级精读，不是原文转载。")} <a href="${escapeHtml(book.sourceUrl || "#")}" target="_blank" rel="noreferrer">访问官网</a></div>`
+                : ""
+            }
+            ${
+              isMagazine && (book.vocab || []).length
+                ? `<div class="reader-magazine-vocab">
+                    <span>本篇重点词</span>
+                    ${book.vocab
+                      .map(
+                        (item) =>
+                          `<button type="button" data-action="lookup-magazine-word" data-word="${escapeHtml(item.word)}"><strong>${escapeHtml(item.word)}</strong><small>${escapeHtml(item.meaning)}</small></button>`,
+                      )
+                      .join("")}
+                  </div>`
+                : ""
+            }
             ${
               book.id.startsWith("import-")
                 ? `<button class="reader-append-inline" type="button" data-action="append-article"><svg><use href="#i-plus"></use></svg>继续添加内容</button>`
@@ -1946,7 +2584,7 @@ function lookupSelection() {
 function pronounceSelection() {
   const current = readSelectionAction();
   if (!current || !state.currentBook) return;
-  playAudio(dictionaryAudioUrl(current.query, 2));
+  playAudio(dictionaryAudioUrl(current.query, 2), current.query);
   openDictionary(current.query, {
     bookId: state.currentBook.id,
     bookTitle: state.currentBook.title,
@@ -2064,9 +2702,6 @@ function dictionaryEntryMarkup(data) {
         <div class="dict-head-top">
           <h2 class="dict-word">${escapeHtml(data.word || state.dictionary.query)}</h2>
           <div class="dict-head-actions">
-            <button class="dict-icon-btn ${saved ? "is-saved" : ""}" type="button" data-action="save-word" aria-label="${saved ? "已收藏" : "收藏单词"}">
-              <svg><use href="#i-bookmark"></use></svg>
-            </button>
             ${
               linkedHighlight
                 ? `<button class="dict-icon-btn" type="button" data-action="remove-current-highlight" aria-label="取消这个标记" title="取消这个标记"><svg><use href="#i-trash"></use></svg></button>`
@@ -2084,15 +2719,16 @@ function dictionaryEntryMarkup(data) {
           uk || us
             ? `
               <div class="dict-phonetics">
-                ${uk ? `<span class="phonetic"><strong>UK</strong>/${escapeHtml(uk)}/<button class="pronounce-button" type="button" data-audio="${escapeHtml(data.audio?.uk || "")}" aria-label="播放英式发音"><svg><use href="#i-volume"></use></svg></button></span>` : ""}
-                ${us ? `<span class="phonetic"><strong>US</strong>/${escapeHtml(us)}/<button class="pronounce-button" type="button" data-audio="${escapeHtml(data.audio?.us || "")}" aria-label="播放美式发音"><svg><use href="#i-volume"></use></svg></button></span>` : ""}
+                ${uk ? `<span class="phonetic"><strong>UK</strong>/${escapeHtml(uk)}/<button class="pronounce-button" type="button" data-audio="${escapeHtml(data.audio?.uk || "")}" data-audio-text="${escapeHtml(data.word)}" aria-label="播放英式发音"><svg><use href="#i-volume"></use></svg></button></span>` : ""}
+                ${us ? `<span class="phonetic"><strong>US</strong>/${escapeHtml(us)}/<button class="pronounce-button" type="button" data-audio="${escapeHtml(data.audio?.us || "")}" data-audio-text="${escapeHtml(data.word)}" aria-label="播放美式发音"><svg><use href="#i-volume"></use></svg></button></span>` : ""}
               </div>
             `
             : data.audio?.us
-              ? `<div class="dict-phonetics dict-phonetics-audio"><button class="pronounce-button dict-pronounce-wide" type="button" data-audio="${escapeHtml(data.audio.us)}" aria-label="播放发音"><svg><use href="#i-volume"></use></svg>播放发音</button></div>`
+              ? `<div class="dict-phonetics dict-phonetics-audio"><button class="pronounce-button dict-pronounce-wide" type="button" data-audio="${escapeHtml(data.audio.us)}" data-audio-text="${escapeHtml(data.word)}" aria-label="播放发音"><svg><use href="#i-volume"></use></svg>播放发音</button></div>`
               : ""
         }
       </div>
+      ${dictionarySaveMarkup(data, saved, linkedHighlight)}
       <div class="dict-tabs" role="tablist" aria-label="词典内容">
         ${dictionaryTab("simple", "简明", tab)}
         ${dictionaryTab("examples", `例句${examples.length ? ` ${examples.length}` : ""}`, tab)}
@@ -2209,6 +2845,22 @@ function dictionaryEntryMarkup(data) {
   `;
 }
 
+function dictionarySaveMarkup(data, saved, linkedHighlight) {
+  return `
+    <div class="dict-save-row">
+      <button class="dict-save-word ${saved ? "is-saved" : ""}" type="button" data-action="save-word">
+        <svg><use href="#${saved ? "i-check" : "i-bookmark"}"></use></svg>
+        <span>${saved ? "已在生词本 · 点击移出" : "加入生词本"}</span>
+      </button>
+      ${
+        linkedHighlight && !saved
+          ? `<span class="dict-save-note">这个标记只保留颜色，手动加入后才会进入生词本和背单词。</span>`
+          : ""
+      }
+    </div>
+  `;
+}
+
 function dictionaryTab(id, label, active) {
   return `<button class="dict-tab ${active === id ? "is-active" : ""}" type="button" role="tab" aria-selected="${active === id}" data-dict-tab="${id}">${escapeHtml(label)}</button>`;
 }
@@ -2252,9 +2904,6 @@ async function openDictionary(query, meta = {}) {
     request.data = data;
     addRecentWord(data.word || cleaned);
     renderDictionaryPanel();
-    if (meta.origin === "highlight") {
-      saveWordEntry(data, meta);
-    }
   } catch (error) {
     if (state.dictionary !== request) return;
     const translated = await translateDictionaryFallback(cleaned);
@@ -2279,9 +2928,6 @@ async function openDictionary(query, meta = {}) {
       };
       addRecentWord(cleaned);
       renderDictionaryPanel();
-      if (meta.origin === "highlight") {
-        saveWordEntry(request.data, meta);
-      }
       return;
     }
     request.status = "error";
@@ -2302,30 +2948,125 @@ function switchDictionaryTab(tab) {
   renderDictionaryPanel();
 }
 
-function playAudio(url) {
-  if (!url) {
-    showToast("这个词暂时没有可用发音。", { icon: "i-volume" });
-    return Promise.resolve(false);
+let activePronunciationAudio = null;
+
+function audioTextFromUrl(url) {
+  try {
+    return new URL(url, location.href).searchParams.get("audio") || "";
+  } catch {
+    return "";
   }
+}
+
+function tryPlayAudioSource(url) {
   return new Promise((resolve) => {
-    const audio = new Audio(url);
+    const audio = new Audio();
     let settled = false;
-    const fail = () => {
+    const finish = (ok) => {
       if (settled) return;
       settled = true;
-      showToast("发音暂时无法播放，可以打开词典再试。", { icon: "i-volume" });
-      resolve(false);
+      window.clearTimeout(timeout);
+      if (!ok) {
+        audio.pause();
+        audio.removeAttribute("src");
+      }
+      resolve(ok);
     };
-    audio.addEventListener("error", fail, { once: true });
+    const timeout = window.setTimeout(() => finish(false), 3600);
+    audio.preload = "auto";
+    audio.addEventListener("playing", () => finish(true), { once: true });
+    audio.addEventListener("error", () => finish(false), { once: true });
+    audio.src = url;
     audio
       .play()
       .then(() => {
-        if (settled) return;
-        settled = true;
-        resolve(true);
+        window.setTimeout(() => {
+          if (!settled && !audio.paused && audio.currentTime > 0) finish(true);
+        }, 420);
       })
-      .catch(fail);
+      .catch(() => finish(false));
   });
+}
+
+function speakWithBrowser(text) {
+  return new Promise((resolve) => {
+    if (!text || !("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) {
+      resolve(false);
+      return;
+    }
+    const synth = window.speechSynthesis;
+    synth.cancel();
+    const utterance = new SpeechSynthesisUtterance(
+      String(text)
+        .replace(/[_*#]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim(),
+    );
+    utterance.lang = "en-US";
+    utterance.rate = 0.86;
+    utterance.pitch = 1;
+    const voices = synth.getVoices();
+    const preferred =
+      voices.find((voice) => /en[-_]US/i.test(voice.lang)) ||
+      voices.find((voice) => /en[-_]GB/i.test(voice.lang)) ||
+      voices.find((voice) => /^en/i.test(voice.lang));
+    if (preferred) utterance.voice = preferred;
+    let settled = false;
+    const finish = (ok) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      resolve(ok);
+    };
+    const timeout = window.setTimeout(() => finish(true), Math.max(4500, String(text).length * 140));
+    utterance.onend = () => finish(true);
+    utterance.onerror = () => finish(false);
+    synth.speak(utterance);
+  });
+}
+
+async function playAudio(url, text = "") {
+  const spokenText = (
+    text ||
+    audioTextFromUrl(url) ||
+    state.dictionary?.data?.word ||
+    state.wordSession?.questions?.[state.wordSession.index]?.word ||
+    ""
+  ).trim();
+  if (!spokenText) {
+    showToast("这个词暂时没有可用发音。", { icon: "i-volume" });
+    return false;
+  }
+  if (activePronunciationAudio) {
+    activePronunciationAudio.pause();
+    activePronunciationAudio.removeAttribute("src");
+    activePronunciationAudio = null;
+  }
+  window.speechSynthesis?.cancel();
+
+  // Numbers and longer phrases are often missing from the dictionary audio
+  // service. Use the device voice first so "19th century" is never silent.
+  if (/[0-9]/.test(spokenText) || spokenText.split(/\s+/).length > 2) {
+    if (await speakWithBrowser(spokenText)) return true;
+  }
+
+  const sources = [
+    url,
+    dictionaryAudioUrl(spokenText, 1),
+    dictionaryAudioUrl(spokenText, 2),
+    `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q=${encodeURIComponent(spokenText)}`,
+  ].filter(Boolean);
+
+  for (const source of [...new Set(sources)]) {
+    if (await tryPlayAudioSource(source)) {
+      activePronunciationAudio = null;
+      return true;
+    }
+  }
+
+  if (await speakWithBrowser(spokenText)) return true;
+  showToast("发音暂时没有播放出来，请检查设备音量后再试。", { icon: "i-volume", duration: 6000 });
+  return false;
 }
 
 /* Wordbook */
@@ -2356,6 +3097,13 @@ function saveWordEntry(data, meta = {}) {
     paragraph: Number.isFinite(meta.paragraph) ? meta.paragraph : null,
     createdAt: existing?.createdAt || Date.now(),
     updatedAt: Date.now(),
+    reviewCount: existing?.reviewCount || 0,
+    correctCount: existing?.correctCount || 0,
+    wrongCount: existing?.wrongCount || 0,
+    intervalDays: existing?.intervalDays || 0,
+    ease: existing?.ease || 2.5,
+    nextReviewAt: existing?.nextReviewAt || 0,
+    lastReviewedAt: existing?.lastReviewedAt || 0,
   };
   const next = existing ? entries.filter((item) => item.id !== existing.id) : entries;
   next.unshift(entry);
@@ -2374,35 +3122,44 @@ function saveCurrentWord() {
     const next = getWordbook().filter((item) => item.word.toLowerCase() !== word.toLowerCase());
     safeWrite(STORAGE.wordbook, next);
     renderDictionaryPanel();
-    showToast(`已从生词本移除「${word}」`, { icon: "i-notebook" });
+    showToast(`已从生词本移出「${word}」`, { icon: "i-notebook" });
     return;
   }
   saveWordEntry(state.dictionary.data, state.dictionary.meta || {});
   renderDictionaryPanel();
-  showToast(`已收藏「${state.dictionary.data.word}」`, { icon: "i-bookmark" });
+  showToast(`已加入生词本「${state.dictionary.data.word}」`, { icon: "i-bookmark" });
 }
 
 function renderWordbook() {
   const words = getWordbook();
+  if (state.wordSession) {
+    els.main.innerHTML = wordSessionMarkup();
+    els.searchInput.value = "";
+    return;
+  }
   const query = state.wordbookQuery.trim().toLowerCase();
   const visible = words.filter((item) => !query || item.word.toLowerCase().includes(query) || item.meaning.toLowerCase().includes(query));
   const highlightRecords = allHighlightRecords();
+  const now = Date.now();
+  const freshCount = words.filter((item) => !item.reviewCount).length;
+  const dueCount = words.filter((item) => item.reviewCount && (item.nextReviewAt || 0) <= now).length;
   els.main.innerHTML = `
     <section class="wordbook-view">
       <div class="wordbook-head">
         <div>
-          <h1 class="wordbook-title">生词，<br />也要有上下文。</h1>
-          <p class="wordbook-sub">每次标记都会自动留在这里——带着它出现的那本书、那一页。</p>
+          <h1 class="wordbook-title">生词，<br />背了才算数。</h1>
+          <p class="wordbook-sub">标记只保留颜色；在右侧词典点「加入生词本」，单词才会带着出处留在这里。</p>
         </div>
         <div class="wordbook-count"><strong>${words.length}</strong> words</div>
       </div>
+      ${wordbookTrainerMarkup(words, freshCount, dueCount)}
       <div class="wordbook-toolbar">
         <label class="wordbook-search">
           <svg><use href="#i-search"></use></svg>
           <input id="wordbook-search-input" type="search" value="${escapeHtml(state.wordbookQuery)}" placeholder="搜索生词或释义" aria-label="搜索生词" />
         </label>
         <div class="wordbook-toolbar-right">
-          <span class="wordbook-sort">按最近标记排序</span>
+          <span class="wordbook-sort">按加入时间排序</span>
           <button class="button-quiet" type="button" data-action="export-data">
             <svg><use href="#i-upload"></use></svg>
             导出备份
@@ -2428,6 +3185,329 @@ function renderWordbook() {
       </section>
     </section>
   `;
+}
+
+function wordbookTrainerMarkup(words, freshCount, dueCount) {
+  const { count, mode } = state.wordSessionConfig;
+  const counts = [10, 20, 30, 50];
+  const modes = [
+    ["mixed", "混合", "先复习到期词，再学新词"],
+    ["new", "新词", "只学还没背过的词"],
+    ["review", "复习", "只背到期和易错的词"],
+  ];
+  const ready = words.length > 0;
+  return `
+    <section class="wordbook-trainer">
+      <div class="trainer-copy">
+        <span class="trainer-kicker">BAICIZHAN MODE · 选择题记忆</span>
+        <h2>今天，背几个？</h2>
+        <p>看英文、听发音、选中文释义。答错的词会自动进入下一轮复习，不用另外整理。</p>
+        <div class="trainer-stats">
+          <span><strong>${freshCount}</strong> 个新词</span>
+          <span><strong>${dueCount}</strong> 个待复习</span>
+          <span><strong>${words.length}</strong> 个总词数</span>
+        </div>
+      </div>
+      <div class="trainer-config">
+        <div class="trainer-row">
+          <span class="trainer-label">每次数量</span>
+          <div class="trainer-chips">
+            ${counts
+              .map(
+                (value) =>
+                  `<button class="trainer-chip ${count === value ? "is-active" : ""}" type="button" data-word-count="${value}">${value}</button>`,
+              )
+              .join("")}
+          </div>
+        </div>
+        <div class="trainer-row">
+          <span class="trainer-label">背诵模式</span>
+          <div class="trainer-chips trainer-modes">
+            ${modes
+              .map(
+                ([value, label, hint]) =>
+                  `<button class="trainer-chip ${mode === value ? "is-active" : ""}" type="button" data-word-mode="${value}" title="${hint}">${label}</button>`,
+              )
+              .join("")}
+          </div>
+        </div>
+        <button class="trainer-start" type="button" data-action="start-word-session" ${ready ? "" : "disabled"}>
+          <svg><use href="#i-highlight"></use></svg>
+          ${ready ? "开启，开始背单词" : "先加入几个生词"}
+        </button>
+        <p class="trainer-footnote">${ready ? "答对会拉长复习间隔；答错会在 10 分钟后重新出现。" : "在阅读页选中单词，点右侧「加入生词本」后再来。"}</p>
+      </div>
+    </section>
+  `;
+}
+
+function wordSessionMarkup() {
+  const session = state.wordSession;
+  if (!session) return "";
+  if (session.finished) return wordSessionSummaryMarkup(session);
+  const question = session.questions[session.index];
+  if (!question) return wordSessionSummaryMarkup(session);
+  const progress = Math.round(((session.index + (question.answered ? 1 : 0)) / session.questions.length) * 100);
+  const chosen = question.chosen;
+  return `
+    <section class="word-session-view">
+      <div class="word-session-top">
+        <button class="word-session-exit" type="button" data-action="end-word-session">
+          <svg><use href="#i-x"></use></svg>
+          退出
+        </button>
+        <div class="word-session-progress"><span style="width:${progress}%"></span></div>
+        <span class="word-session-index">${session.index + 1} / ${session.questions.length}</span>
+      </div>
+      <div class="word-session-stage">
+        <span class="word-session-mode">${escapeHtml(session.modeLabel)}</span>
+        <h1 class="word-session-word">${escapeHtml(question.word)}</h1>
+        <div class="word-session-phonetic">
+          ${question.phonetic ? `<span>/${escapeHtml(question.phonetic)}/</span>` : ""}
+          <button type="button" data-audio="${escapeHtml(dictionaryAudioUrl(question.word, 2))}" data-audio-text="${escapeHtml(question.word)}" aria-label="播放发音">
+            <svg><use href="#i-volume"></use></svg>
+          </button>
+        </div>
+        <p class="word-session-prompt">${question.binary ? "这个词你认识吗？" : "选出正确的中文释义"}</p>
+        <div class="word-options">
+          ${question.options
+            .map((option, index) => {
+              const stateClass = question.answered
+                ? option.correct
+                  ? "is-correct"
+                  : index === chosen
+                    ? "is-wrong"
+                    : "is-muted"
+                : "";
+              return `<button class="word-option ${stateClass}" type="button" data-action="answer-word" data-option-index="${index}" ${question.answered ? "disabled" : ""}>
+                <span>${String.fromCharCode(65 + index)}</span>
+                ${escapeHtml(option.text)}
+              </button>`;
+            })
+            .join("")}
+        </div>
+        ${
+          question.answered
+            ? `
+              <div class="word-feedback ${question.correct ? "is-correct" : "is-wrong"}">
+                <strong>${question.correct ? "记住了" : "再记一次"}</strong>
+                <p>${escapeHtml(question.meaning || "")}</p>
+                ${question.sourceTitle ? `<span>来自《${escapeHtml(question.sourceTitle)}》</span>` : ""}
+              </div>
+              <button class="word-next" type="button" data-action="next-word">
+                ${session.index + 1 >= session.questions.length ? "看本轮结果" : "下一个"}
+                <svg><use href="#i-arrow"></use></svg>
+              </button>
+            `
+            : `
+              <button class="word-reveal" type="button" data-action="reveal-word">不认识，直接看答案</button>
+            `
+        }
+      </div>
+      <p class="word-session-tip">空格键也可以选择「不认识」 · 答题后会显示出处</p>
+    </section>
+  `;
+}
+
+function wordSessionSummaryMarkup(session) {
+  const total = session.questions.length;
+  const correct = session.questions.filter((item) => item.correct).length;
+  const wrong = session.questions.filter((item) => item.correct === false);
+  const rate = total ? Math.round((correct / total) * 100) : 0;
+  return `
+    <section class="word-session-view word-session-summary">
+      <div class="session-summary-mark"><svg><use href="#i-check"></use></svg></div>
+      <span class="word-session-mode">本轮结束</span>
+      <h1>这一轮，<br />收下 <em>${correct}</em> 个词。</h1>
+      <p class="session-summary-rate">正确率 ${rate}% · 共 ${total} 个词 · 错词 ${wrong.length} 个</p>
+      ${
+        wrong.length
+          ? `<div class="session-wrong-list">${wrong
+              .map(
+                (item) => `<div><strong>${escapeHtml(item.word)}</strong><span>${escapeHtml(item.meaning || "")}</span></div>`,
+              )
+              .join("")}</div>`
+          : `<p class="session-perfect">这一轮没有错词。可以加大数量，或者去读一段新的文章。</p>`
+      }
+      <div class="session-summary-actions">
+        ${
+          wrong.length
+            ? `<button class="button-primary" type="button" data-action="review-wrong">复习 ${wrong.length} 个错词</button>`
+            : ""
+        }
+        <button class="button-secondary" type="button" data-action="restart-word-session">再来一轮</button>
+        <button class="button-quiet" type="button" data-action="end-word-session">回到生词本</button>
+      </div>
+    </section>
+  `;
+}
+
+function shuffled(values) {
+  const copy = [...values];
+  for (let index = copy.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(Math.random() * (index + 1));
+    [copy[index], copy[swap]] = [copy[swap], copy[index]];
+  }
+  return copy;
+}
+
+function buildWordQuestion(entry, allWords) {
+  const candidates = allWords.filter(
+    (item) => item.id !== entry.id && item.meaning && item.meaning !== entry.meaning,
+  );
+  const binary = candidates.length < 3;
+  const options = binary
+    ? [
+        { text: "我认识这个词", correct: true },
+        { text: "还不认识，需要复习", correct: false },
+      ]
+    : shuffled([
+        { text: entry.meaning || "暂无释义", correct: true },
+        ...shuffled(candidates)
+          .slice(0, 3)
+          .map((item) => ({ text: item.meaning, correct: false })),
+      ]);
+  return {
+    wordId: entry.id,
+    word: entry.word,
+    phonetic: entry.phonetic || "",
+    meaning: entry.meaning || "",
+    sourceTitle: entry.sourceTitle || "",
+    options,
+    binary,
+    chosen: null,
+    answered: false,
+    correct: null,
+  };
+}
+
+function startWordSession(mode = state.wordSessionConfig.mode, count = state.wordSessionConfig.count, ids = null) {
+  const allWords = getWordbook();
+  if (!allWords.length) {
+    showToast("生词本还是空的，先在阅读页手动加入几个词。", { icon: "i-notebook" });
+    return;
+  }
+  const now = Date.now();
+  let pool;
+  if (Array.isArray(ids) && ids.length) {
+    const selected = new Set(ids);
+    pool = allWords.filter((item) => selected.has(item.id));
+    mode = "wrong";
+  } else if (mode === "review") {
+    pool = allWords.filter((item) => item.reviewCount && (item.nextReviewAt || 0) <= now);
+    if (!pool.length) {
+      pool = allWords.filter((item) => (item.wrongCount || 0) > (item.correctCount || 0) || item.intervalDays === 0);
+    }
+    if (!pool.length) pool = allWords.filter((item) => item.reviewCount);
+  } else if (mode === "new") {
+    pool = allWords.filter((item) => !item.reviewCount);
+  } else {
+    const due = allWords.filter((item) => item.reviewCount && (item.nextReviewAt || 0) <= now);
+    const fresh = allWords.filter((item) => !item.reviewCount);
+    pool = [...due, ...fresh, ...allWords];
+  }
+  const unique = [...new Map(pool.map((item) => [item.id, item])).values()];
+  if (!unique.length) {
+    showToast(mode === "new" ? "没有新词了，可以切换到复习模式。" : "现在没有到期的复习词，先学几个新词吧。", {
+      icon: "i-notebook",
+    });
+    return;
+  }
+  const questions = shuffled(unique)
+    .slice(0, Math.max(1, Math.min(Number(count) || 20, unique.length)))
+    .map((item) => buildWordQuestion(item, allWords));
+  const labels = {
+    new: "新词",
+    review: "复习",
+    mixed: "混合模式",
+    wrong: "错词复习",
+  };
+  state.wordSession = {
+    questions,
+    index: 0,
+    correctCount: 0,
+    wrongIds: [],
+    finished: false,
+    mode,
+    modeLabel: labels[mode] || "背单词",
+    startedAt: Date.now(),
+  };
+  renderWordbook();
+}
+
+function updateWordReview(wordId, correct) {
+  const words = getWordbook();
+  const target = words.find((item) => item.id === wordId);
+  if (!target) return;
+  const now = Date.now();
+  target.reviewCount = (target.reviewCount || 0) + 1;
+  target.lastReviewedAt = now;
+  if (correct) {
+    target.correctCount = (target.correctCount || 0) + 1;
+    target.intervalDays = target.intervalDays ? Math.min(60, target.intervalDays * 2) : 1;
+    target.ease = Math.min(3.2, (target.ease || 2.5) + 0.04);
+    target.nextReviewAt = now + target.intervalDays * 86400000;
+  } else {
+    target.wrongCount = (target.wrongCount || 0) + 1;
+    target.intervalDays = 0;
+    target.ease = Math.max(1.5, (target.ease || 2.5) - 0.12);
+    target.nextReviewAt = now + 10 * 60000;
+  }
+  target.updatedAt = now;
+  safeWrite(STORAGE.wordbook, words);
+}
+
+function answerWordQuestion(optionIndex) {
+  const session = state.wordSession;
+  if (!session || session.finished) return;
+  const question = session.questions[session.index];
+  if (!question || question.answered) return;
+  const chosen = question.options[optionIndex];
+  if (!chosen) return;
+  question.chosen = optionIndex;
+  question.answered = true;
+  question.correct = Boolean(chosen.correct);
+  updateWordReview(question.wordId, question.correct);
+  renderWordbook();
+}
+
+function revealWordAnswer() {
+  const session = state.wordSession;
+  if (!session || session.finished) return;
+  const question = session.questions[session.index];
+  if (!question || question.answered) return;
+  question.answered = true;
+  question.correct = false;
+  question.chosen = -1;
+  updateWordReview(question.wordId, false);
+  renderWordbook();
+}
+
+function nextWordQuestion() {
+  const session = state.wordSession;
+  if (!session) return;
+  if (session.index + 1 >= session.questions.length) {
+    session.finished = true;
+  } else {
+    session.index += 1;
+  }
+  renderWordbook();
+}
+
+function endWordSession() {
+  state.wordSession = null;
+  renderWordbook();
+}
+
+function reviewWrongWords() {
+  const session = state.wordSession;
+  if (!session) return;
+  const ids = session.questions.filter((item) => item.correct === false).map((item) => item.wordId);
+  if (!ids.length) {
+    showToast("这一轮没有错词。", { icon: "i-check" });
+    return;
+  }
+  startWordSession("wrong", ids.length, ids);
 }
 
 function allHighlightRecords() {
@@ -2513,7 +3593,7 @@ function wordbookEmptyMarkup(filtered = false) {
       <div>
         <div class="empty-state-mark"><svg><use href="#i-notebook"></use></svg></div>
         <h3>${filtered ? "没有匹配的生词" : "生词本还空着"}</h3>
-        <p>${filtered ? "换一个词再搜索，或清空搜索条件。" : "打开一本书，选中一个词并点「标记」。释义与出处会自动留在这里。"}</p>
+        <p>${filtered ? "换一个词再搜索，或清空搜索条件。" : "打开一本书，选中一个词，在右侧词典点「加入生词本」。释义与出处会留在这里，等你来背。"}</p>
         <button class="button-primary" type="button" data-action="go-library">去书库读一段</button>
       </div>
     </div>
@@ -2533,7 +3613,7 @@ function removeWord(wordId) {
 
 function exportUserData() {
   const payload = {
-    product: "页边 MARGIN",
+    product: "Eleven 精读书库",
     version: 1,
     exportedAt: new Date().toISOString(),
     progress: safeRead(STORAGE.progress, {}),
@@ -2546,7 +3626,7 @@ function exportUserData() {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = `margin-reader-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  anchor.download = `eleven-library-backup-${new Date().toISOString().slice(0, 10)}.json`;
   anchor.click();
   URL.revokeObjectURL(url);
   showToast("阅读记录、标记、生词和导入已导出。", { icon: "i-check" });
@@ -2791,7 +3871,7 @@ function renderImport() {
         </div>
       </div>
       <div class="import-grid">
-        <div id="import-left">${state.appendMode ? appendTargetMarkup() : pendingSourceMarkup()}${left}</div>
+        <div id="import-left">${state.appendMode ? appendTargetMarkup() : `${pendingMagazineMarkup()}${pendingSourceMarkup()}`}${left}</div>
         <aside class="import-side">
           <div class="import-side-block">
             <h3>最近的导入</h3>
@@ -2856,6 +3936,21 @@ function pendingSourceMarkup() {
         <small>${escapeHtml(state.pendingBookSource.title)}${state.pendingBookSource.author ? ` · ${escapeHtml(state.pendingBookSource.author)}` : ""}</small>
       </div>
       <button class="button-quiet" type="button" data-action="clear-pending-source">不关联这本书</button>
+    </div>
+  `;
+}
+
+function pendingMagazineMarkup() {
+  if (!state.pendingMagazine) return "";
+  const link = state.pendingMagazine;
+  return `
+    <div class="pending-source magazine-pending">
+      <div>
+        <span>正在截图精读这篇外刊</span>
+        <strong>${escapeHtml(link.title || "未命名外刊")}</strong>
+        <small>${escapeHtml(link.source || "我的外刊")} · ${escapeHtml(link.level || "未标注难度")} · ${escapeHtml(magazineHost(link.url))}</small>
+      </div>
+      <button class="button-quiet" type="button" data-action="clear-pending-magazine">不关联这篇</button>
     </div>
   `;
 }
@@ -3280,6 +4375,7 @@ function clearOcrState() {
   state.ocr = emptyOcrState();
   state.pendingBookTitle = "";
   state.pendingBookSource = null;
+  state.pendingMagazine = null;
   state.appendMode = null;
 }
 
@@ -3399,6 +4495,7 @@ async function openOcrReading(readAfter = true) {
   }
   state.imports = [saved, ...state.imports.filter((item) => item.id !== saved.id)].slice(0, 50);
   safeWrite(STORAGE.imports, state.imports);
+  state.pendingMagazine = null;
   clearOcrState();
   if (readAfter) navigate(`#/read/${encodeURIComponent(saved.id)}`);
   else renderImport();
@@ -3471,6 +4568,7 @@ function startAppendArticle(book = state.currentBook) {
   };
   state.pendingBookTitle = "";
   state.pendingBookSource = null;
+  state.pendingMagazine = null;
   state.ocr = emptyOcrState();
   navigate("#/import");
 }
@@ -3600,6 +4698,7 @@ function showBookDialog(book) {
 
 function importForBook(bookId) {
   const book = findBook(bookId);
+  state.pendingMagazine = null;
   state.pendingBookTitle = book?.title || "";
   state.pendingBookSource = book
     ? { bookId: book.id, title: book.title, titleZh: book.titleZh || "", author: book.author }
@@ -3631,6 +4730,25 @@ function bindEvents() {
       state.category = genre.dataset.genre;
       state.visible = 30;
       refreshCatalog();
+      return;
+    }
+    const wordCount = event.target.closest("[data-word-count]");
+    if (wordCount) {
+      state.wordSessionConfig.count = Number(wordCount.dataset.wordCount) || 20;
+      renderWordbook();
+      return;
+    }
+    const wordMode = event.target.closest("[data-word-mode]");
+    if (wordMode) {
+      state.wordSessionConfig.mode = wordMode.dataset.wordMode || "mixed";
+      renderWordbook();
+      return;
+    }
+    const magazineLevel = event.target.closest("[data-magazine-level]");
+    if (magazineLevel) {
+      state.magazineLevel = magazineLevel.dataset.magazineLevel || "all";
+      state.magazineVisible = 24;
+      renderMagazines();
       return;
     }
     const bookTrigger = event.target.closest("[data-book-id]");
@@ -3669,6 +4787,7 @@ function bindEvents() {
       case "open-import":
         state.appendMode = null;
         state.pendingBookSource = null;
+        state.pendingMagazine = null;
         state.pendingBookTitle = "";
         navigate("#/import");
         break;
@@ -3717,6 +4836,81 @@ function bindEvents() {
         break;
       case "go-wordbook":
         navigate("#/wordbook");
+        break;
+      case "open-magazine": {
+        const id = actionButton.dataset.magazineId;
+        if (!id) break;
+        state.startContentForBookId = id;
+        navigate(`#/read/${encodeURIComponent(id)}`);
+        break;
+      }
+      case "load-more-magazines":
+        state.magazineVisible += 24;
+        renderMagazines();
+        break;
+      case "focus-magazine-search": {
+        const input = document.querySelector("#magazine-lookup-input");
+        input?.focus();
+        input?.scrollIntoView({ behavior: "smooth", block: "center" });
+        break;
+      }
+      case "open-magazine-link-dialog":
+        {
+          const query = actionButton.dataset.prefillQuery || "";
+          const publication = findPublication(query);
+          openMagazineLinkDialog({
+            query,
+            title: query,
+            source: actionButton.dataset.prefillSource || publication?.name || "",
+            level: actionButton.dataset.prefillLevel || publication?.level || "",
+            access: publication?.access || "unknown",
+            notes: query ? "从站内查找结果保存，具体免费/付费情况请在官网确认。" : "",
+          });
+        }
+        break;
+      case "close-magazine-link": {
+        const dialog = document.querySelector("#magazine-link-dialog");
+        if (dialog) dialog.close();
+        break;
+      }
+      case "save-magazine-link":
+        saveMagazineLink();
+        break;
+      case "delete-magazine-link":
+        deleteMagazineLink(actionButton.dataset.linkId);
+        break;
+      case "start-magazine-screenshot":
+        startMagazineScreenshot(actionButton.dataset.linkId);
+        break;
+      case "clear-pending-magazine":
+        state.pendingMagazine = null;
+        state.pendingBookTitle = "";
+        state.ocr.title = "";
+        state.ocr.titleZh = "";
+        state.ocr.source = "截图导入";
+        state.ocr.notes = "";
+        renderImport();
+        break;
+      case "start-word-session":
+        startWordSession();
+        break;
+      case "answer-word":
+        answerWordQuestion(Number(actionButton.dataset.optionIndex));
+        break;
+      case "reveal-word":
+        revealWordAnswer();
+        break;
+      case "next-word":
+        nextWordQuestion();
+        break;
+      case "end-word-session":
+        endWordSession();
+        break;
+      case "review-wrong":
+        reviewWrongWords();
+        break;
+      case "restart-word-session":
+        startWordSession(state.wordSessionConfig.mode, state.wordSessionConfig.count);
         break;
       case "open-my-article":
       case "open-reading-record": {
@@ -3797,6 +4991,15 @@ function bindEvents() {
         break;
       case "lookup-selection":
         lookupSelection();
+        break;
+      case "lookup-magazine-word":
+        if (state.currentBook && actionButton.dataset.word) {
+          openDictionary(actionButton.dataset.word, {
+            bookId: state.currentBook.id,
+            bookTitle: state.currentBook.title,
+            origin: "lookup",
+          });
+        }
         break;
       case "pronounce-selection":
         pronounceSelection();
@@ -3933,7 +5136,7 @@ function bindEvents() {
 
   document.addEventListener("click", (event) => {
     const audioButton = event.target.closest("[data-audio]");
-    if (audioButton) playAudio(audioButton.dataset.audio);
+    if (audioButton) playAudio(audioButton.dataset.audio, audioButton.dataset.audioText);
     const mark = event.target.closest("mark[data-highlight-id]");
     if (mark) {
       const text = mark.textContent;
@@ -4043,6 +5246,11 @@ function bindEvents() {
   });
 
   document.addEventListener("submit", (event) => {
+    if (event.target.id === "magazine-lookup-form") {
+      event.preventDefault();
+      runMagazineLookup(event.target.querySelector("#magazine-lookup-input")?.value || "");
+      return;
+    }
     if (event.target.id !== "dict-search-form") return;
     event.preventDefault();
     const word = normalizeWord(new FormData(event.target).get("word") || "");
@@ -4080,6 +5288,21 @@ function bindEvents() {
         event.preventDefault();
         goToPage(state.page + 1);
       }
+    }
+    if (
+      state.view === "wordbook" &&
+      state.wordSession &&
+      !typing &&
+      event.key === " " &&
+      !event.metaKey &&
+      !event.ctrlKey &&
+      !event.altKey
+    ) {
+      event.preventDefault();
+      const session = state.wordSession;
+      const question = session.questions[session.index];
+      if (question?.answered) nextWordQuestion();
+      else revealWordAnswer();
     }
     if (event.target.id === "drop-zone" && (event.key === "Enter" || event.key === " ")) {
       event.preventDefault();
