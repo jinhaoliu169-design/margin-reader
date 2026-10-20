@@ -188,6 +188,14 @@
         <button class="selection-pronounce" type="button" data-action="pronounce-selection" aria-label="播放发音" title="播放发音">
           <svg><use href="#i-volume"></use></svg>
         </button>
+        <button class="selection-read" type="button" data-action="read-selection" aria-label="只读选中的这一句">
+          <svg><use href="#i-volume"></use></svg>
+          <span class="optional-label">只读这句</span>
+        </button>
+        <button class="selection-read-from" type="button" data-action="read-from-selection" aria-label="从这一句开始往后读">
+          <svg><use href="#i-volume"></use></svg>
+          <span class="optional-label">从这里读</span>
+        </button>
         <span class="toolbar-separator" aria-hidden="true"></span>
         <button class="highlight-button" type="button" data-action="confirm-highlight" aria-label="标记并查词">
           <svg><use href="#i-highlight"></use></svg>
@@ -206,7 +214,7 @@
           <span class="optional-label">取消</span>
         </button>
       </div>
-      <span class="selection-hint" id="selection-hint">标记后查看词义</span>
+      <span class="selection-hint" id="selection-hint">查词 / 朗读 / 标记</span>
     </div>
 
     <div class="drop-overlay" id="drop-overlay" hidden>

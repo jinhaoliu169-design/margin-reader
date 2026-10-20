@@ -1320,6 +1320,31 @@ svg {
   height: 16px;
 }
 
+.selection-read,
+.selection-read-from {
+  display: inline-flex;
+  height: 34px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px;
+  color: var(--paper-bright);
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.selection-read:hover,
+.selection-read-from:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.selection-read svg,
+.selection-read-from svg {
+  width: 15px;
+  height: 15px;
+  color: #b9d6c1;
+}
+
 .highlight-button {
   display: inline-flex;
   height: 34px;
@@ -1426,6 +1451,8 @@ svg {
   }
 
   .selection-lookup,
+  .selection-read,
+  .selection-read-from,
   .highlight-button,
   .selection-cancel {
     gap: 4px;

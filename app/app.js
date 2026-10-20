@@ -2683,7 +2683,7 @@ function positionSelectionToolbar(rect) {
   if (top < 76) top = rect.bottom + 12;
   els.toolbar.style.left = `${left}px`;
   els.toolbar.style.top = `${top}px`;
-  els.selectionHint.textContent = `查词或标记「${truncate(state.selection?.query || "", 22)}」`;
+  els.selectionHint.textContent = `查词、朗读或标记「${truncate(state.selection?.query || "", 22)}」`;
 }
 
 function hideSelectionToolbar() {
@@ -2768,6 +2768,94 @@ function pronounceSelection() {
     paragraph: current.paragraph,
     origin: "lookup",
   });
+}
+
+function sentenceSpanAt(text, offset) {
+  const source = String(text || "");
+  const target = Math.max(0, Math.min(Number(offset) || 0, source.length));
+  const pattern = /[^.!?]+[.!?]+(?:["”’']+)?|[^.!?]+$/g;
+  let match;
+  let previous = null;
+  while ((match = pattern.exec(source))) {
+    const leading = (match[0].match(/^\s*/) || [""])[0].length;
+    const start = match.index + leading;
+    const end = match.index + match[0].length;
+    const span = { start, end, text: source.slice(start, end).trim() };
+    if (target >= start && target < end) return span;
+    if (start <= target) previous = span;
+    if (start > target) break;
+  }
+  return previous || { start: 0, end: source.length, text: source.trim() };
+}
+
+function speakTextOnly(text, paragraphIndex, mode = "selection") {
+  const synth = "speechSynthesis" in window ? window.speechSynthesis : null;
+  if (!synth) {
+    showToast("这个浏览器暂时不支持英语朗读。", { icon: "i-volume" });
+    return false;
+  }
+  const clean = String(text || "").trim();
+  if (!clean) return false;
+  stopSpeech();
+  const token = speechState.token;
+  speechState.mode = mode;
+  speechState.paragraphIndex = paragraphIndex;
+  speechState.paused = false;
+  const utterance = makeReadUtterance(clean);
+  utterance.onend = () => {
+    if (speechState.token !== token) return;
+    speechState.mode = null;
+    speechState.paragraphIndex = null;
+    updateSpeechUi();
+  };
+  utterance.onerror = () => {
+    if (speechState.token !== token) return;
+    stopSpeech();
+    showToast("这句暂时无法朗读。", { icon: "i-volume" });
+  };
+  synth.speak(utterance);
+  updateSpeechUi();
+  return true;
+}
+
+function readSelectionOnly() {
+  const current = readSelectionAction();
+  if (!current || !state.currentBook) return;
+  const sentence = sentenceSpanAt(state.paragraphs[current.paragraph] || "", current.start);
+  if (!sentence.text) return;
+  if (speakTextOnly(sentence.text, current.paragraph, "selection")) {
+    showToast(`只读这句 · ${truncate(sentence.text, 36)}`, { icon: "i-volume", duration: 2400 });
+  }
+}
+
+function readFromSelection() {
+  const current = readSelectionAction();
+  if (!current || !state.currentBook) return;
+  const synth = "speechSynthesis" in window ? window.speechSynthesis : null;
+  if (!synth) {
+    showToast("这个浏览器暂时不支持英语朗读。", { icon: "i-volume" });
+    return;
+  }
+  const paragraph = state.paragraphs[current.paragraph] || "";
+  const sentence = sentenceSpanAt(paragraph, current.start);
+  const firstText = paragraph.slice(sentence.start).trim();
+  if (!firstText) return;
+  stopSpeech();
+  const position = state.visibleParagraphs.indexOf(current.paragraph);
+  const queue = [{ index: current.paragraph, text: firstText }];
+  state.visibleParagraphs
+    .slice(Math.max(0, position) + 1)
+    .filter((index) => !isChapterHeading(state.paragraphs[index] || ""))
+    .forEach((index) => {
+      const text = String(state.paragraphs[index] || "").trim();
+      if (text) queue.push({ index, text });
+    });
+  speechState.mode = "full";
+  speechState.queue = queue;
+  speechState.queueIndex = 0;
+  speechState.paused = false;
+  speakNextFull(speechState.token);
+  showToast("从这一句开始往后朗读。", { icon: "i-volume", duration: 2400 });
 }
 
 const IRREGULAR_FORM_BASES = {
@@ -6016,6 +6104,12 @@ function bindEvents() {
         break;
       case "pronounce-selection":
         pronounceSelection();
+        break;
+      case "read-selection":
+        readSelectionOnly();
+        break;
+      case "read-from-selection":
+        readFromSelection();
         break;
       case "cancel-highlight": {
         const selection = window.getSelection();
