@@ -350,7 +350,7 @@ def translate_with_youdao(text: str) -> str:
     url = "https://aidemo.youdao.com/trans"
     data = urllib.parse.urlencode({"q": text, "from": "Auto", "to": "Auto"}).encode("utf-8")
     last_error = None
-    for attempt in range(3):
+    for attempt in range(2):
         try:
             request = urllib.request.Request(
                 url,
@@ -362,7 +362,7 @@ def translate_with_youdao(text: str) -> str:
                     "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
                 },
             )
-            with urllib.request.urlopen(request, timeout=30) as response:
+            with urllib.request.urlopen(request, timeout=10) as response:
                 payload = json.loads(response.read().decode("utf-8"))
             if str(payload.get("errorCode")) != "0":
                 raise ValueError("Translation service returned an error")
@@ -372,7 +372,48 @@ def translate_with_youdao(text: str) -> str:
             return str(translated).strip()
         except Exception as exc:
             last_error = exc
-            time.sleep(0.5 + attempt * 0.7)
+            time.sleep(0.35 + attempt * 0.6)
+    raise last_error or ValueError("Translation failed")
+
+
+def translate_with_google(texts: list[str]) -> list[str]:
+    if not texts:
+        return []
+    url = "https://translate.googleapis.com/translate_a/t?client=dict-chrome-ex&sl=en&tl=zh-CN"
+    data = urllib.parse.urlencode([("q", text) for text in texts]).encode("utf-8")
+    last_error = None
+    for attempt in range(1):
+        try:
+            request = urllib.request.Request(
+                url,
+                data=data,
+                headers={
+                    "User-Agent": USER_AGENT,
+                    "Accept": "application/json,text/plain,*/*",
+                    "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                },
+            )
+            with urllib.request.urlopen(request, timeout=12) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            if isinstance(payload, dict):
+                payload = payload.get("sentences") or payload.get("translation") or []
+            if not isinstance(payload, list) or len(payload) != len(texts):
+                raise ValueError("Translation response size mismatch")
+            values = []
+            for item in payload:
+                if isinstance(item, list):
+                    value = "".join(
+                        str(piece[0])
+                        for piece in item
+                        if isinstance(piece, list) and piece
+                    )
+                else:
+                    value = str(item or "")
+                values.append(value.strip())
+            return values
+        except Exception as exc:
+            last_error = exc
+            time.sleep(0.25 + attempt * 0.4)
     raise last_error or ValueError("Translation failed")
 
 
@@ -391,7 +432,7 @@ def translate_with_mymemory(text: str) -> str:
             {"q": piece, "langpair": "en|zh-CN"}
         )
         request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-        with urllib.request.urlopen(request, timeout=25) as response:
+        with urllib.request.urlopen(request, timeout=6) as response:
             payload = json.loads(response.read().decode("utf-8"))
         translated = (payload.get("responseData") or {}).get("translatedText") or ""
         pieces.append(str(translated).strip())
@@ -400,8 +441,9 @@ def translate_with_mymemory(text: str) -> str:
 
 def translate_texts(texts: list[str]) -> list[str]:
     normalized = [str(text or "").strip() for text in texts]
+    deadline = time.time() + 28
 
-    def split_unit(text: str, limit: int = 620) -> list[str]:
+    def split_unit(text: str, limit: int = 1200) -> list[str]:
         if len(text) <= limit:
             return [text]
         sentences = re.split(r"(?<=[.!?])\s+", text)
@@ -448,22 +490,72 @@ def translate_texts(texts: list[str]) -> list[str]:
     unit_results: dict[tuple[int, int], str] = {}
     missing: list[tuple[int, int, str]] = []
     for input_index, unit_index, text in units:
+        if not text:
+            continue
         cache_path = translation_cache_path(text)
         if cache_path.exists():
             try:
-                unit_results[(input_index, unit_index)] = cache_path.read_text(encoding="utf-8")
-                continue
+                cached = cache_path.read_text(encoding="utf-8").strip()
+                if cached:
+                    unit_results[(input_index, unit_index)] = cached
+                    continue
             except OSError:
                 pass
         missing.append((input_index, unit_index, text))
 
-    sentinel = "\n@@MARGIN_PARA@@\n"
-    batches: list[list[tuple[int, int, str]]] = []
+    def store_result(key: tuple[int, int], translated: str, source: str) -> None:
+        value = str(translated or "").strip()
+        if not value:
+            return
+        unit_results[key] = value
+        if source:
+            try:
+                translation_cache_path(source).write_text(value, encoding="utf-8")
+            except OSError:
+                pass
+
+    # Google's public translate endpoint accepts many `q` fields in one request and
+    # returns the translations in the same order. One request can cover a whole page.
+    google_chunks: list[list[tuple[int, int, str]]] = []
     current: list[tuple[int, int, str]] = []
     current_size = 0
     for item in missing:
+        if current and (len(current) >= 60 or current_size + len(item[2]) > 14000):
+            google_chunks.append(current)
+            current = []
+            current_size = 0
+        current.append(item)
+        current_size += len(item[2])
+    if current:
+        google_chunks.append(current)
+
+    def run_google(chunk: list[tuple[int, int, str]]) -> None:
+        if time.time() > deadline:
+            return
+        values = translate_with_google([item[2] for item in chunk])
+        for item, value in zip(chunk, values):
+            store_result((item[0], item[1]), value, item[2])
+
+    if google_chunks:
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [executor.submit(run_google, chunk) for chunk in google_chunks]
+            for future in as_completed(futures):
+                try:
+                    future.result()
+                except Exception:
+                    pass
+
+    remaining = [
+        item for item in missing if (item[0], item[1]) not in unit_results
+    ]
+
+    sentinel = "\n@@MARGIN_PARA@@\n"
+    batches: list[list[tuple[int, int, str]]] = []
+    current = []
+    current_size = 0
+    for item in remaining:
         size = len(item[2]) + len(sentinel)
-        if current and current_size + size > 620:
+        if current and current_size + size > 900:
             batches.append(current)
             current = []
             current_size = 0
@@ -472,33 +564,69 @@ def translate_texts(texts: list[str]) -> list[str]:
     if current:
         batches.append(current)
 
-    def process_batch(batch):
-        joined = sentinel.join(text for _, _, text in batch)
+    def process_youdao_batch(
+        batch: list[tuple[int, int, str]], depth: int = 0
+    ) -> list[tuple[tuple[int, int, str], str]]:
+        if time.time() > deadline:
+            return []
+        joined = sentinel.join(item[2] for item in batch)
         try:
             translated = translate_with_youdao(joined)
-            parts = [part.strip() for part in translated.split("@@MARGIN_PARA@@")]
+            parts = [
+                part.strip()
+                for part in re.split(r"@+\s*MARGIN_PARA\s*@+", translated)
+            ]
             if len(parts) != len(batch):
                 raise ValueError("Translation boundary mismatch")
-            for (input_index, unit_index, source), result in zip(batch, parts):
-                unit_results[(input_index, unit_index)] = result
-                translation_cache_path(source).write_text(result, encoding="utf-8")
+            return list(zip(batch, parts))
         except Exception:
-            for input_index, unit_index, source in batch:
-                try:
-                    translated = translate_with_youdao(source)
-                except Exception:
-                    try:
-                        translated = translate_with_mymemory(source)
-                    except Exception:
-                        translated = ""
-                unit_results[(input_index, unit_index)] = translated
-                if translated:
-                    translation_cache_path(source).write_text(translated, encoding="utf-8")
+            pass
+        if len(batch) == 1:
+            if depth >= 2 or time.time() > deadline:
+                return []
+            try:
+                return [(batch[0], translate_with_youdao(batch[0][2]))]
+            except Exception:
+                return []
+        if depth >= 3:
+            return []
+        middle = len(batch) // 2
+        return process_youdao_batch(batch[:middle], depth + 1) + process_youdao_batch(
+            batch[middle:], depth + 1
+        )
 
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        futures = [executor.submit(process_batch, batch) for batch in batches]
-        for future in as_completed(futures):
-            future.result()
+    def run_youdao(batch: list[tuple[int, int, str]]) -> None:
+        for item, translated in process_youdao_batch(batch):
+            store_result((item[0], item[1]), translated, item[2])
+
+    if batches:
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futures = [executor.submit(run_youdao, batch) for batch in batches]
+            for future in as_completed(futures):
+                try:
+                    future.result()
+                except Exception:
+                    pass
+
+    remaining = [
+        item for item in missing if (item[0], item[1]) not in unit_results
+    ][:6]
+    if remaining and time.time() < deadline:
+        def run_mymemory(item: tuple[int, int, str]) -> None:
+            try:
+                store_result(
+                    (item[0], item[1]), translate_with_mymemory(item[2]), item[2]
+                )
+            except Exception:
+                pass
+
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futures = [executor.submit(run_mymemory, item) for item in remaining]
+            for future in as_completed(futures):
+                try:
+                    future.result()
+                except Exception:
+                    pass
 
     results = []
     for input_index, count in enumerate(unit_counts):
@@ -760,7 +888,7 @@ class LexiconHandler(SimpleHTTPRequestHandler):
             self.send_json(
                 {
                     "translations": translations,
-                    "source": {"name": "有道翻译", "url": "https://aidemo.youdao.com/"},
+                    "source": {"name": "Google 翻译 · 有道备用", "url": "https://translate.google.com/"},
                 }
             )
         except (ValueError, json.JSONDecodeError) as exc:

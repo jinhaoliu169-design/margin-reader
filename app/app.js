@@ -6,6 +6,7 @@ const STORAGE = {
   recentWords: "margin_recent_words_v1",
   readerSize: "margin_reader_size_v1",
   selectedColor: "margin_selected_color_v1",
+  noiseFilter: "margin_noise_filter_v1",
 };
 
 const PAGE_SIZE = 55;
@@ -37,9 +38,18 @@ const state = {
   paragraphs: [],
   translations: {},
   translationLoading: new Set(),
+  translationFailed: new Set(),
   expandedTranslations: new Set(),
   page: 0,
   totalPages: 1,
+  visibleParagraphs: [],
+  paragraphNoise: [],
+  hiddenParagraphCount: 0,
+  noiseFilter: Math.max(
+    0,
+    Math.min(100, Number(safeRead(STORAGE.noiseFilter, 60)) || 0),
+  ),
+  pageTranslationBusy: false,
   readerLoading: false,
   readerError: "",
   dictionary: null,
@@ -744,7 +754,11 @@ async function openReader(bookId, options = {}) {
   }
   state.translations = {};
   state.translationLoading.clear();
+  state.translationFailed.clear();
   state.expandedTranslations.clear();
+  state.visibleParagraphs = [];
+  state.paragraphNoise = [];
+  state.hiddenParagraphCount = 0;
   state.readerError = "";
   state.readerLoading = true;
   state.dictionary = null;
@@ -796,15 +810,37 @@ async function openReader(bookId, options = {}) {
 
     state.currentText = text;
     state.paragraphs = parseParagraphs(text);
-    state.totalPages = Math.max(1, Math.ceil(state.paragraphs.length / PAGE_SIZE));
+    state.paragraphNoise = analyzeParagraphNoise(state.paragraphs, book);
+    rebuildParagraphView();
+    remapHighlights(book.id, state.paragraphs);
     const saved = safeRead(STORAGE.progress, {})[book.id];
-    const pendingPage = state.pendingPageByBook[book.id];
+    const pendingParagraph = state.pendingPageByBook[book.id];
     delete state.pendingPageByBook[book.id];
-    const requestedPage = Number.isFinite(options.page)
-      ? options.page
-      : Number.isFinite(pendingPage)
-        ? pendingPage
-        : Number(saved?.page || 0);
+    let requestedPage = Number.isFinite(options.page) ? options.page : null;
+    if (requestedPage === null && Number.isFinite(pendingParagraph)) {
+      const position = state.visibleParagraphs.findIndex((index) => index >= pendingParagraph);
+      requestedPage = Math.floor(Math.max(0, position) / PAGE_SIZE);
+    }
+    if (requestedPage === null) {
+      if (saved?.layout === 2 && Number.isFinite(Number(saved?.paragraph))) {
+        const position = state.visibleParagraphs.findIndex(
+          (index) => index >= Number(saved.paragraph),
+        );
+        requestedPage = Math.floor(Math.max(0, position) / PAGE_SIZE);
+      } else {
+        requestedPage = Number(saved?.page || 0);
+      }
+      if (saved?.layout !== 2 && requestedPage > 0) {
+        const legacyCount = String(text)
+          .replace(/\r\n?/g, "\n")
+          .split(/\n\s*\n+/)
+          .filter((block) => block.trim()).length;
+        const legacyPages = Math.max(1, Math.ceil(legacyCount / PAGE_SIZE));
+        requestedPage = Math.round(
+          (requestedPage / Math.max(1, legacyPages - 1)) * Math.max(0, state.totalPages - 1),
+        );
+      }
+    }
     state.page = Math.max(0, Math.min(state.totalPages - 1, requestedPage));
     state.readerLoading = false;
     renderReaderShell();
@@ -965,20 +1001,54 @@ function parseParagraphs(text) {
     .replace(/\u00a0/g, " ")
     .replace(/\t/g, " ")
     .trim();
-  const blocks = normalized.split(/\n\s*\n+/);
   const paragraphs = [];
 
-  for (const rawBlock of blocks) {
-    const lines = rawBlock
+  const splitLines = (block) =>
+    block
       .split("\n")
       .map((line) => line.replace(/\s+/g, " ").trim())
       .filter(Boolean);
+
+  const blankSeparated = normalized.split(/\n\s*\n+/).filter((block) => block.trim());
+  const lineSpaced =
+    blankSeparated.length > 30 &&
+    (normalized.match(/\n{3,}/g) || []).length > 20 &&
+    blankSeparated.filter((block) => {
+      const value = block.trim();
+      return value.length < 110 && !/[.!?…]["'”’]?$/.test(value);
+    }).length /
+      blankSeparated.length >
+      0.35;
+
+  const blocks = lineSpaced ? normalized.split(/\n{3,}/) : normalized.split(/\n\s*\n+/);
+  let bodyStarted = !lineSpaced;
+
+  for (const rawBlock of blocks) {
+    const lines = splitLines(rawBlock);
     if (!lines.length) continue;
+    const joined = lines
+      .join(" ")
+      .replace(/\s+([,.;:!?])/g, "$1")
+      .replace(/([—–])\s+/g, "$1");
+    if (
+      lineSpaced &&
+      !bodyStarted &&
+      lines.length >= 2 &&
+      joined.length >= 260 &&
+      /[a-z]{3}/.test(joined)
+    ) {
+      bodyStarted = true;
+    }
+    if (lineSpaced && !bodyStarted) {
+      // 版权页、书名清单等前置内容通常每组只有几行，逐行保留，便于按强度隐藏。
+      paragraphs.push(...lines);
+      continue;
+    }
     if (lines.length === 1 && lines[0].length < 140) {
       paragraphs.push(lines[0]);
       continue;
     }
-    let paragraph = lines.join(" ").replace(/\s+([,.;:!?])/g, "$1");
+    const paragraph = joined;
     if (paragraph.length > 3000) {
       const sentences = paragraph.split(/(?<=[.!?])\s+(?=[A-Z“"'])/);
       let chunk = "";
@@ -999,13 +1069,144 @@ function parseParagraphs(text) {
   return paragraphs.filter(Boolean);
 }
 
+function noiseWordSet(value) {
+  return new Set(
+    String(value || "")
+      .toLowerCase()
+      .match(/[a-z][a-z'’-]{2,}/g) || [],
+  );
+}
+
+function analyzeParagraphNoise(paragraphs, book) {
+  const total = paragraphs.length;
+  const scores = new Array(total).fill(0);
+  if (!total) return scores;
+
+  const findBodyFrom = (start, end, step) => {
+    for (let index = start; step > 0 ? index < end : index >= end; index += step) {
+      const value = paragraphs[index] || "";
+      const words = (value.match(/[A-Za-z][A-Za-z'’-]*/g) || []).length;
+      const stops = (value.match(/[.!?…]["'”’]?(\s|$)/g) || []).length;
+      if (value.length >= 170 && words >= 28 && stops >= 2) return index;
+    }
+    return step > 0 ? Math.min(total - 1, end) : 0;
+  };
+
+  const firstBody = findBodyFrom(0, Math.min(total, 140), 1);
+  const lastBody = findBodyFrom(total - 1, Math.max(firstBody, 0), -1);
+  const importedBook = Boolean(book?.id?.startsWith("import-"));
+  const usePosition =
+    !importedBook && firstBody < total - 1 && lastBody > firstBody;
+  const titleWords = noiseWordSet(`${book?.title || ""} ${book?.titleZh || ""}`);
+  const authorWords = noiseWordSet(book?.author || "");
+  const seen = new Map();
+
+  paragraphs.forEach((paragraph) => {
+    const value = paragraph.trim();
+    if (value.length > 140) return;
+    const key = value.toLowerCase().replace(/\s+/g, " ");
+    seen.set(key, (seen.get(key) || 0) + 1);
+  });
+
+  paragraphs.forEach((paragraph, index) => {
+    const value = paragraph.trim();
+    if (!value) {
+      scores[index] = 100;
+      return;
+    }
+    if (
+      /^(chapter|book|part)\s+(?:[ivxlcdm]+|\d+)\b/i.test(value) ||
+      /^(prologue|epilogue|introduction|preface)$/i.test(value)
+    ) {
+      scores[index] = 0;
+      return;
+    }
+
+    let score = 0;
+    const words = (value.match(/[A-Za-z][A-Za-z'’-]*/g) || []).length;
+    const letters = (value.match(/[A-Za-z]/g) || []).length;
+    const allCaps = /^[A-Z0-9 ,.'’&:;!?—-]+$/.test(value) && words >= 1 && words <= 12;
+    const upper = value === value.toUpperCase() && /[A-Z]/.test(value);
+    const frontMatter = usePosition && index < firstBody;
+    const backMatter = usePosition && index > lastBody;
+    const key = value.toLowerCase().replace(/\s+/g, " ");
+
+    if (letters < 2 && !importedBook) score += 90;
+    if (
+      /^(?:\d{1,4}|[ivxlcdm]{1,7})[.)]?$/i.test(value) &&
+      (!importedBook || frontMatter || backMatter)
+    ) {
+      score += 85;
+    }
+    if (value.length < 2 && !importedBook) score += 60;
+    if (
+      /(copyright|all rights reserved|printed in|isbn|library of congress|transcriber|proofread|produced by|project gutenberg|table of contents|list of illustrations|acknowledg|dedicat|also by|books by|published by|publisher|typeset|manufactured in|www\.|https?:)/i.test(
+        value,
+      )
+    ) {
+      score += 95;
+    }
+    if (/^(the end|end|finis|conclusion)[.!]?$/i.test(value)) score += 70;
+    if ((seen.get(key) || 0) > 1 && value.length < 130 && (frontMatter || backMatter)) {
+      score += 28;
+    }
+    if (upper && value.length < 96 && words <= 10 && !importedBook) score += 22;
+    if (letters / value.length < 0.55 && !importedBook) score += 25;
+
+    if (frontMatter) {
+      score += 48;
+      if (allCaps) score += 22;
+      if (words < 10) score += 10;
+      const tokens = noiseWordSet(value);
+      if ([...tokens].some((word) => titleWords.has(word))) score += 20;
+      if ([...tokens].some((word) => authorWords.has(word))) score += 20;
+    }
+    if (backMatter) {
+      score += 34;
+      if (allCaps) score += 18;
+    }
+    if (frontMatter || backMatter) {
+      if (value.length < 30 && !/[.!?…]$/.test(value) && !/^["'“”‘’—]/.test(value)) score += 12;
+    }
+
+    scores[index] = Math.max(0, Math.min(100, score));
+  });
+
+  return scores;
+}
+
+function noiseCutoff(value = state.noiseFilter) {
+  if (value <= 0) return 101;
+  return Math.max(1, Math.round(101 - value));
+}
+
+function rebuildParagraphView() {
+  if (!state.paragraphNoise.length || state.paragraphNoise.length !== state.paragraphs.length) {
+    state.paragraphNoise = analyzeParagraphNoise(state.paragraphs, state.currentBook);
+  }
+  const cutoff = noiseCutoff();
+  state.visibleParagraphs = state.paragraphs
+    .map((_, index) => index)
+    .filter((index) => (state.paragraphNoise[index] || 0) < cutoff);
+  if (!state.visibleParagraphs.length && state.paragraphs.length) {
+    state.visibleParagraphs = state.paragraphs.map((_, index) => index);
+  }
+  state.hiddenParagraphCount = state.paragraphs.length - state.visibleParagraphs.length;
+  state.totalPages = Math.max(1, Math.ceil(state.visibleParagraphs.length / PAGE_SIZE));
+}
+
+function currentPageParagraphIndices() {
+  const start = state.page * PAGE_SIZE;
+  return state.visibleParagraphs.slice(start, start + PAGE_SIZE);
+}
+
 function isChapterHeading(text) {
   const clean = text.trim();
   if (!clean || clean.length > 100) return false;
   return (
-    /^(chapter|book|part)\s+[ivxlcdm\d]+/i.test(clean) ||
-    /^(prologue|epilogue|introduction|preface|contents)$/i.test(clean) ||
-    (/^[A-Z0-9 ,.'’&:;!?—-]+$/.test(clean) && clean.length > 3 && clean.length < 80)
+    /^(chapter|book|part|canto|act|scene)\s+(?:[ivxlcdm]+|\d+)\b/i.test(clean) ||
+    /^(prologue|epilogue|introduction|preface|contents|title page)$/i.test(clean) ||
+    /^[IVXLCDM]+\.?$/.test(clean)
   );
 }
 
@@ -1090,6 +1291,21 @@ function renderReaderShell() {
               }
             </div>
             <div class="reader-tools-right">
+              <div class="reader-filter-wrap">
+                <button class="reader-tool-button ${state.hiddenParagraphCount ? "has-filter" : ""}" type="button" data-action="toggle-noise-filter" aria-label="调整无关文字过滤" aria-expanded="false" title="无关文字过滤">
+                  <svg><use href="#i-sliders"></use></svg>
+                </button>
+                <div class="reader-filter-popover" id="reader-filter-popover" hidden>
+                  <div class="reader-filter-head">
+                    <span>无关文字过滤</span>
+                    <strong>${Math.round(state.noiseFilter)}%</strong>
+                  </div>
+                  <input id="noise-filter-range" type="range" min="0" max="100" step="5" value="${Math.round(state.noiseFilter)}" aria-label="无关文字过滤强度" />
+                  <div class="reader-filter-scale"><span>全部保留</span><span>只留正文</span></div>
+                  <p class="reader-filter-count">已隐藏 <strong>${state.hiddenParagraphCount}</strong> 段 · 本页显示 ${currentPageParagraphIndices().length} 段</p>
+                  <button class="reader-filter-reset" type="button" data-action="reset-noise-filter">全部显示</button>
+                </div>
+              </div>
               <button class="reader-tool-button" type="button" data-action="font-down" aria-label="缩小字号">A−</button>
               <button class="reader-tool-button" type="button" data-action="font-up" aria-label="放大字号">A+</button>
               <button class="reader-tool-button" type="button" data-action="toggle-dict" aria-label="打开词典">
@@ -1141,12 +1357,11 @@ function readerErrorMarkup(message) {
 }
 
 function readerTextMarkup() {
-  const start = state.page * PAGE_SIZE;
-  const paragraphs = state.paragraphs.slice(start, start + PAGE_SIZE);
+  const indices = currentPageParagraphIndices();
   const highlights = getHighlights(state.currentBook.id);
-  const body = paragraphs
-    .map((text, offset) => {
-      const index = start + offset;
+  const body = indices
+    .map((index) => {
+      const text = state.paragraphs[index] || "";
       const heading = isChapterHeading(text);
       const classes = ["reader-paragraph"];
       if (heading) classes.push("chapter-heading");
@@ -1159,6 +1374,7 @@ function readerTextMarkup() {
       const translation = state.translations[key];
       const expanded = state.expandedTranslations.has(key);
       const loading = state.translationLoading.has(key);
+      const failed = state.translationFailed.has(key);
       return `
         <div class="translation-block" data-translation-index="${index}">
           ${paragraph}
@@ -1170,7 +1386,15 @@ function readerTextMarkup() {
           </div>
           ${
             expanded
-              ? `<div class="paragraph-translation">${translation ? escapeHtml(translation) : loading ? "正在翻译…" : "译文暂未返回，请再次点击。"}</div>`
+              ? `<div class="paragraph-translation">${
+                  translation
+                    ? escapeHtml(translation)
+                    : loading
+                      ? "正在翻译…"
+                      : failed
+                        ? `<button class="translation-retry" type="button" data-action="retry-translation" data-paragraph-index="${index}">翻译服务暂时没有响应，点此重试。</button>`
+                        : "正在准备译文…"
+                }</div>`
               : ""
           }
         </div>
@@ -1227,30 +1451,25 @@ function translationKey(index) {
 }
 
 function currentPageTranslationIndices() {
-  const start = state.page * PAGE_SIZE;
-  const end = Math.min(state.paragraphs.length, start + PAGE_SIZE);
-  const indices = [];
-  for (let index = start; index < end; index += 1) {
-    if (!isChapterHeading(state.paragraphs[index])) indices.push(index);
-  }
-  return indices;
+  return currentPageParagraphIndices().filter((index) => !isChapterHeading(state.paragraphs[index]));
 }
 
 async function ensureTranslations(indices, options = {}) {
   if (!state.currentBook) return;
   const bookId = state.currentBook.id;
-  const keys = indices.map((index) => translationKey(index));
+  const uniqueIndices = [...new Set(indices.filter((index) => Number.isInteger(index)))];
+  const keys = uniqueIndices.map((index) => translationKey(index));
   const waitForPending = async () => {
     const started = Date.now();
     while (
-      Date.now() - started < 12000 &&
+      Date.now() - started < 15000 &&
       state.currentBook?.id === bookId &&
       keys.some((key) => state.translationLoading.has(key))
     ) {
       await new Promise((resolve) => setTimeout(resolve, 120));
     }
   };
-  const missing = indices.filter((index) => {
+  const missing = uniqueIndices.filter((index) => {
     const key = translationKey(index);
     return !state.translations[key] && !state.translationLoading.has(key);
   });
@@ -1259,24 +1478,50 @@ async function ensureTranslations(indices, options = {}) {
     return;
   }
   missing.forEach((index) => state.translationLoading.add(translationKey(index)));
+
+  const requestChunk = async (chunk) => {
+    const response = await fetch("/api/translate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({ texts: chunk.map((index) => state.paragraphs[index]) }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || "翻译失败。");
+    if (state.currentBook?.id !== bookId) return false;
+    (payload.translations || []).forEach((translation, offset) => {
+      const index = chunk[offset];
+      if (!Number.isInteger(index)) return;
+      const key = translationKey(index);
+      if (translation) {
+        state.translations[key] = translation;
+        state.translationFailed.delete(key);
+      }
+    });
+    return true;
+  };
+
   try {
-    for (let start = 0; start < missing.length; start += 40) {
-      const chunk = missing.slice(start, start + 40);
-      const response = await fetch("/api/translate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json; charset=utf-8" },
-        body: JSON.stringify({ texts: chunk.map((index) => state.paragraphs[index]) }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error || "翻译失败。");
-      if (state.currentBook?.id !== bookId) return;
-      (payload.translations || []).forEach((translation, offset) => {
-        const index = chunk[offset];
-        if (Number.isInteger(index)) state.translations[translationKey(index)] = translation;
-      });
+    for (let start = 0; start < missing.length; start += 120) {
+      const chunk = missing.slice(start, start + 120);
+      if (!(await requestChunk(chunk))) return;
     }
+
+    const stillEmpty = missing.filter((index) => !state.translations[translationKey(index)]);
+    if (stillEmpty.length) {
+      await new Promise((resolve) => setTimeout(resolve, 450));
+      if (state.currentBook?.id !== bookId) return;
+      for (let start = 0; start < stillEmpty.length; start += 120) {
+        const chunk = stillEmpty.slice(start, start + 120);
+        if (!(await requestChunk(chunk))) return;
+      }
+    }
+    missing.forEach((index) => {
+      const key = translationKey(index);
+      if (state.translations[key]) state.translationFailed.delete(key);
+      else state.translationFailed.add(key);
+    });
   } catch (error) {
-    keys.forEach((key) => state.expandedTranslations.delete(key));
+    missing.forEach((index) => state.translationFailed.add(translationKey(index)));
     if (!options.silent) showToast(`译文暂时没有生成：${error.message}`, { icon: "i-x", duration: 6000 });
   } finally {
     missing.forEach((index) => state.translationLoading.delete(translationKey(index)));
@@ -1286,18 +1531,37 @@ async function ensureTranslations(indices, options = {}) {
 
 async function prefetchCurrentPageTranslations() {
   if (!state.currentBook || state.readerLoading) return;
+  const bookId = state.currentBook.id;
+  const page = state.page;
   const indices = currentPageTranslationIndices();
   await ensureTranslations(indices, { silent: true });
   if (indices.some((index) => state.expandedTranslations.has(translationKey(index)))) {
     renderReaderPage();
   }
+  window.setTimeout(() => {
+    if (
+      state.view === "reading" &&
+      state.currentBook?.id === bookId &&
+      state.page === page
+    ) {
+      prefetchNextPageTranslations();
+    }
+  }, 700);
+}
+
+async function prefetchNextPageTranslations() {
+  if (!state.currentBook || state.page >= state.totalPages - 1) return;
+  const start = (state.page + 1) * PAGE_SIZE;
+  const indices = state.visibleParagraphs
+    .slice(start, start + PAGE_SIZE)
+    .filter((index) => !isChapterHeading(state.paragraphs[index]));
+  if (indices.length) await ensureTranslations(indices, { silent: true });
 }
 
 async function prefetchAllImportedTranslations() {
   if (!state.currentBook?.id.startsWith("import-")) return;
-  const indices = state.paragraphs
-    .map((text, index) => (isChapterHeading(text) ? -1 : index))
-    .filter((index) => index >= 0)
+  const indices = state.visibleParagraphs
+    .filter((index) => !isChapterHeading(state.paragraphs[index]))
     .slice(0, 200);
   await ensureTranslations(indices, { silent: true });
   if (indices.some((index) => state.expandedTranslations.has(translationKey(index)))) {
@@ -1317,6 +1581,9 @@ async function toggleParagraphTranslation(index) {
   if (!state.translations[key]) {
     await ensureTranslations([index]);
     renderReaderPage();
+    if (!state.translations[key]) {
+      showToast("翻译服务暂时没有响应，已自动重试一次。", { icon: "i-x", duration: 4200 });
+    }
   }
 }
 
@@ -1332,8 +1599,14 @@ async function togglePageTranslation() {
   }
   keys.forEach((key) => state.expandedTranslations.add(key));
   renderReaderPage();
-  await ensureTranslations(indices);
-  renderReaderPage();
+  state.pageTranslationBusy = true;
+  updatePageTranslationButton();
+  try {
+    await ensureTranslations(indices);
+  } finally {
+    state.pageTranslationBusy = false;
+    renderReaderPage();
+  }
 }
 
 function updateReaderProgressUi() {
@@ -1367,8 +1640,14 @@ function updatePageTranslationButton() {
     indices.length > 0 &&
     indices.every((index) => state.expandedTranslations.has(translationKey(index)));
   const label = button.querySelector("span");
-  if (label) label.textContent = expanded ? "收起本页译文" : "显示本页译文";
-  button.setAttribute("aria-label", expanded ? "收起本页译文" : "显示本页译文");
+  const text = state.pageTranslationBusy
+    ? "正在翻译…"
+    : expanded
+      ? "收起本页译文"
+      : "显示本页译文";
+  if (label) label.textContent = text;
+  button.setAttribute("aria-label", text);
+  button.classList.toggle("is-busy", state.pageTranslationBusy);
 }
 
 function saveProgress() {
@@ -1379,6 +1658,8 @@ function saveProgress() {
     title: state.currentBook.title,
     author: state.currentBook.author,
     page: state.page,
+    paragraph: currentPageParagraphIndices()[0] ?? 0,
+    layout: 2,
     totalPages: state.totalPages,
     updatedAt: Date.now(),
   };
@@ -1386,7 +1667,7 @@ function saveProgress() {
 }
 
 function goToPage(page) {
-  if (!state.paragraphs.length) return;
+  if (!state.visibleParagraphs.length) return;
   const next = Math.max(0, Math.min(state.totalPages - 1, page));
   if (next === state.page) return;
   state.page = next;
@@ -1412,6 +1693,39 @@ function changeReaderFont(delta) {
   showToast(`正文字号 ${next.toFixed(1)} px`, { icon: "i-sliders", duration: 1600 });
 }
 
+let noiseFilterTimer = 0;
+
+function applyNoiseFilter(value, options = {}) {
+  const anchor = currentPageParagraphIndices()[0] ?? 0;
+  state.noiseFilter = Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
+  safeWrite(STORAGE.noiseFilter, state.noiseFilter);
+  rebuildParagraphView();
+  let position = state.visibleParagraphs.findIndex((index) => index >= anchor);
+  if (position < 0) position = Math.max(0, state.visibleParagraphs.length - 1);
+  state.page = Math.max(0, Math.min(state.totalPages - 1, Math.floor(position / PAGE_SIZE)));
+  state.expandedTranslations.clear();
+  updateNoiseFilterUi();
+  if (options.render !== false) {
+    renderReaderPage();
+    prefetchCurrentPageTranslations();
+  }
+}
+
+function updateNoiseFilterUi() {
+  const popover = document.querySelector("#reader-filter-popover");
+  if (!popover) return;
+  const range = popover.querySelector("#noise-filter-range");
+  if (range) range.value = String(state.noiseFilter);
+  const strength = popover.querySelector(".reader-filter-head strong");
+  if (strength) strength.textContent = `${state.noiseFilter}%`;
+  const count = popover.querySelector(".reader-filter-count");
+  if (count) {
+    count.innerHTML = `已隐藏 <strong>${state.hiddenParagraphCount}</strong> 段 · 本页显示 ${currentPageParagraphIndices().length} 段`;
+  }
+  const button = document.querySelector("[data-action=toggle-noise-filter]");
+  if (button) button.classList.toggle("has-filter", state.hiddenParagraphCount > 0);
+}
+
 /* Highlights */
 
 function getHighlights(bookId) {
@@ -1423,6 +1737,30 @@ function saveHighlights(bookId, highlights) {
   const all = safeRead(STORAGE.highlights, {});
   all[bookId] = highlights;
   safeWrite(STORAGE.highlights, all);
+}
+
+function remapHighlights(bookId, paragraphs) {
+  const highlights = getHighlights(bookId);
+  if (!highlights.length) return;
+  let changed = false;
+  const updated = highlights.map((item) => {
+    const text = String(item.text || "");
+    const index = Number(item.paragraph);
+    const start = Number(item.start);
+    const end = Number(item.end);
+    const current = paragraphs[index] || "";
+    if (Number.isInteger(index) && current.slice(start, end) === text) return item;
+    if (!text) return item;
+    const foundIndex = paragraphs.findIndex((paragraph, paragraphIndex) => {
+      if (paragraphIndex === index) return false;
+      return paragraph.includes(text);
+    });
+    if (foundIndex < 0) return item;
+    const foundStart = paragraphs[foundIndex].indexOf(text);
+    changed = true;
+    return { ...item, paragraph: foundIndex, start: foundStart, end: foundStart + text.length };
+  });
+  if (changed) saveHighlights(bookId, updated);
 }
 
 function addHighlight(highlight) {
@@ -2018,7 +2356,7 @@ function openHighlightSource(highlightId) {
     showToast("这本书的正文已经不在这台设备上。", { icon: "i-x" });
     return;
   }
-  state.pendingPageByBook[item.bookId] = Math.floor(Number(item.paragraph || 0) / PAGE_SIZE);
+  state.pendingPageByBook[item.bookId] = Number(item.paragraph || 0);
   state.startContentForBookId = item.bookId;
   navigate(`#/read/${encodeURIComponent(item.bookId)}`);
 }
@@ -3301,9 +3639,28 @@ function bindEvents() {
       case "font-up":
         changeReaderFont(1);
         break;
+      case "toggle-noise-filter": {
+        const popover = document.querySelector("#reader-filter-popover");
+        if (popover) {
+          popover.hidden = !popover.hidden;
+          actionButton.setAttribute("aria-expanded", String(!popover.hidden));
+          if (!popover.hidden) updateNoiseFilterUi();
+        }
+        break;
+      }
+      case "reset-noise-filter":
+        applyNoiseFilter(0);
+        break;
       case "toggle-translation":
         toggleParagraphTranslation(Number(actionButton.dataset.paragraphIndex));
         break;
+      case "retry-translation": {
+        const index = Number(actionButton.dataset.paragraphIndex);
+        state.translationFailed.delete(translationKey(index));
+        state.expandedTranslations.add(translationKey(index));
+        ensureTranslations([index]).then(() => renderReaderPage());
+        break;
+      }
       case "toggle-page-translation":
         togglePageTranslation();
         break;
@@ -3465,6 +3822,15 @@ function bindEvents() {
     }
   });
 
+  document.addEventListener("click", (event) => {
+    if (event.target.closest(".reader-filter-wrap")) return;
+    const popover = document.querySelector("#reader-filter-popover");
+    if (!popover || popover.hidden) return;
+    popover.hidden = true;
+    const button = document.querySelector("[data-action=toggle-noise-filter]");
+    if (button) button.setAttribute("aria-expanded", "false");
+  });
+
   document.addEventListener("change", (event) => {
     if (event.target.id === "ocr-target-select") {
       state.ocr.targetArticleId = event.target.value;
@@ -3487,6 +3853,14 @@ function bindEvents() {
   });
 
   document.addEventListener("input", (event) => {
+    if (event.target.id === "noise-filter-range") {
+      const value = Number(event.target.value);
+      const popover = event.target.closest("#reader-filter-popover");
+      const strength = popover?.querySelector(".reader-filter-head strong");
+      if (strength) strength.textContent = `${value}%`;
+      window.clearTimeout(noiseFilterTimer);
+      noiseFilterTimer = window.setTimeout(() => applyNoiseFilter(value), 90);
+    }
     if (event.target.id === "ocr-textarea") {
       state.ocr.text = event.target.value;
       const counter = event.target.closest(".ocr-editor-panel")?.querySelector(".ocr-editor-head span");
@@ -3566,6 +3940,8 @@ function bindEvents() {
     }
     if (event.key === "Escape") {
       hideSelectionToolbar();
+      const filterPopover = document.querySelector("#reader-filter-popover");
+      if (filterPopover && !filterPopover.hidden) filterPopover.hidden = true;
       if (state.view === "reading") {
         const panel = document.querySelector("#dictionary-panel");
         if (panel?.classList.contains("is-open") && window.innerWidth <= 860) panel.classList.remove("is-open");
