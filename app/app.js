@@ -240,6 +240,14 @@ const EXTRA_BOOKS = [
   },
 ];
 
+const KEPT_CLASSIC_IDS = [
+  "ol-98491",
+  "ol-98587",
+  "ol-63072",
+  "ol-69612",
+  "ol-18417",
+];
+
 const COVER_PALETTES = [
   ["#435f50", "#fff8e8"],
   ["#2f3e53", "#f4e4b2"],
@@ -302,6 +310,8 @@ const state = {
   wordSession: null,
   wordSessionConfig: { count: 20, mode: "mixed" },
   magazines: [],
+  modernBooks: [],
+  modernLevel: "all",
   magazineQuery: "",
   magazineLevel: "all",
   magazineVisible: 24,
@@ -436,6 +446,7 @@ function findBook(bookId) {
     state.books.find((book) => book.id === bookId) ||
     state.imports.find((book) => book.id === bookId) ||
     state.magazines.find((book) => book.id === bookId) ||
+    state.modernBooks.find((book) => book.id === bookId) ||
     null
   );
 }
@@ -526,7 +537,9 @@ function setView(view) {
 function updateTopbar(context) {
   if (context) els.topbarContext.textContent = context;
   els.topbarCount.textContent =
-    state.view === "magazines"
+    state.view === "modern"
+      ? `${state.modernBooks.length || 48} 本`
+      : state.view === "magazines"
       ? `${state.magazines.length || 520} 篇`
       : `${state.books.length || 620} 本`;
 }
@@ -557,6 +570,19 @@ async function init() {
       author: article.source || "Eleven 精读编辑部",
       tags: [article.levelZh || "", article.topic || ""].filter(Boolean),
       cover: "",
+    }));
+    const modernPayload = await fetch("data/modern-books.json")
+      .then((result) => (result.ok ? result.json() : []))
+      .catch(() => []);
+    state.modernBooks = (Array.isArray(modernPayload) ? modernPayload : []).map((item) => ({
+      ...item,
+      available: false,
+      primary: "现代推荐",
+      cover: "",
+      coverId: null,
+      subjects: [item.reason],
+      notes: "现代推荐书目仍在版权保护期，站点不内置全文；可查看书目信息或导入你合法拥有的内容。",
+      sourceUrl: `https://openlibrary.org/search?q=${encodeURIComponent(`${item.title} ${item.author}`)}`,
     }));
     const localImports = sanitizeImports(safeRead(STORAGE.imports, []));
     state.imports = localImports;
@@ -698,6 +724,15 @@ async function handleRoute() {
     setView("library");
     updateTopbar(`Eleven 精读书库 · ${state.books.length} 本英语小说`);
     renderLibrary();
+    window.scrollTo({ top: 0, behavior: "instant" });
+    return;
+  }
+
+  if (hash === "#/modern") {
+    state.view = "modern";
+    setView("modern");
+    updateTopbar("现代推荐 · 四级 / 六级 / 专四 / 专八 / 雅思");
+    renderModernBooks();
     window.scrollTo({ top: 0, behavior: "instant" });
     return;
   }
@@ -870,6 +905,36 @@ function renderLibrary() {
         </div>
       </div>
 
+      <section class="kept-classics">
+        <div class="section-heading">
+          <div>
+            <h2>保留经典</h2>
+            <p>你点名留下的五本公版小说，全部可以直接读全文。</p>
+          </div>
+          <span class="kept-classics-count">5 本 · 全文可读</span>
+        </div>
+        <div class="book-grid kept-classic-grid">
+          ${KEPT_CLASSIC_IDS
+            .map((id) => findBook(id))
+            .filter(Boolean)
+            .map((book, index) => renderBookCard(book, index))
+            .join("")}
+        </div>
+      </section>
+
+      <section class="modern-showcase">
+        <div class="section-heading">
+          <div>
+            <h2>现代推荐</h2>
+            <p>适合四级、六级、专四和雅思阅读的当代小说；版权书显示书目信息，可导入你合法拥有的内容。</p>
+          </div>
+          <button class="button-quiet" type="button" data-action="open-modern">查看全部 ${state.modernBooks.length} 本 <svg><use href="#i-arrow"></use></svg></button>
+        </div>
+        <div class="book-grid modern-book-grid">
+          ${state.modernBooks.slice(0, 8).map((book, index) => renderBookCard(book, index)).join("")}
+        </div>
+      </section>
+
       <div class="library-section">
         <div class="section-heading">
           <div>
@@ -915,6 +980,44 @@ function renderLibrary() {
   if (continueBook && progress) {
     updateTopbar(`正在读 · ${continueBook.title}`);
   }
+}
+
+function renderModernBooks() {
+  const levels = ["all", "CET4", "CET6", "TEM4", "TEM8/IELTS"];
+  const labels = {
+    all: "全部",
+    CET4: "四级",
+    CET6: "六级",
+    TEM4: "专四",
+    "TEM8/IELTS": "专八 / 雅思",
+  };
+  const visible = state.modernBooks.filter(
+    (book) => state.modernLevel === "all" || book.level === state.modernLevel,
+  );
+  els.main.innerHTML = `
+    <section class="modern-view">
+      <button class="landing-back" type="button" data-action="back-library">
+        <svg><use href="#i-chevron-left"></use></svg>
+        返回书库
+      </button>
+      <header class="modern-head">
+        <span class="magazine-kicker">MODERN FICTION · GRADED READING</span>
+        <h1>现代小说，<br /><em>按难度读。</em></h1>
+        <p>这些书比 19 世纪经典更接近当代英语；仍在版权保护期的书不提供站内全文，但可以查看书目信息、购买/借阅，或导入你合法拥有的截图与文本。</p>
+      </header>
+      <div class="modern-levels">
+        ${levels
+          .map(
+            (level) =>
+              `<button class="filter-chip ${state.modernLevel === level ? "is-active" : ""}" type="button" data-modern-level="${level}">${labels[level]}</button>`,
+          )
+          .join("")}
+        <span>${visible.length} 本</span>
+      </div>
+      <div class="book-grid modern-book-grid">${visible.map((book, index) => renderBookCard(book, index)).join("")}</div>
+    </section>
+  `;
+  els.searchInput.value = "";
 }
 
 function filteredBooks() {
@@ -5933,6 +6036,12 @@ function bindEvents() {
       renderMagazines();
       return;
     }
+    const modernLevel = event.target.closest("[data-modern-level]");
+    if (modernLevel) {
+      state.modernLevel = modernLevel.dataset.modernLevel || "all";
+      renderModernBooks();
+      return;
+    }
     const bookTrigger = event.target.closest("[data-book-id]");
     if (bookTrigger && !event.target.closest("[data-action]")) {
       const book = findBook(bookTrigger.dataset.bookId);
@@ -6015,6 +6124,9 @@ function bindEvents() {
         break;
       case "go-library":
         navigate("#/library");
+        break;
+      case "open-modern":
+        navigate("#/modern");
         break;
       case "go-wordbook":
         navigate("#/wordbook");
