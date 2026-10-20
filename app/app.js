@@ -603,7 +603,14 @@ async function init() {
       .catch(() => {});
     updateTopbar();
     if (!location.hash) {
-      history.replaceState(null, "", "#/library");
+      const lastReading = latestProgress();
+      history.replaceState(
+        null,
+        "",
+        lastReading
+          ? `#/read/${encodeURIComponent(lastReading.bookId)}`
+          : "#/library",
+      );
     }
     await handleRoute();
   } catch (error) {
@@ -2617,8 +2624,6 @@ function persistReadParagraphs() {
 function saveProgress() {
   if (!state.currentBook || state.readerLoading) return;
   const progress = safeRead(STORAGE.progress, {});
-  const existing = progress[state.currentBook.id];
-  if (!existing && state.readProgressPercent <= 0) return;
   progress[state.currentBook.id] = {
     bookId: state.currentBook.id,
     title: state.currentBook.title,
