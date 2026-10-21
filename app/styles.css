@@ -107,7 +107,7 @@ svg {
 
 ::selection {
   color: var(--ink);
-  background: rgba(242, 202, 84, 0.58);
+  background: var(--selection-color, rgba(242, 202, 84, 0.58));
 }
 
 :focus-visible {
@@ -2692,6 +2692,18 @@ svg {
   text-indent: 0;
 }
 
+.reader-paragraph.is-resume-target {
+  outline: 1.5px solid rgba(64, 91, 75, 0.42);
+  outline-offset: 6px;
+  animation: resume-arrival 1000ms var(--ease);
+}
+
+@keyframes resume-arrival {
+  from {
+    opacity: 0.6;
+  }
+}
+
 .translation-block {
   margin: 0 0 0.78em;
 }
@@ -3240,9 +3252,9 @@ svg {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px 9px;
+  gap: 7px 10px;
   margin: 12px 0 0;
-  padding: 9px 10px;
+  padding: 11px 12px;
   border: 1px solid var(--line);
   border-radius: 5px;
   background: var(--paper);
@@ -3250,9 +3262,9 @@ svg {
 
 .dict-morphology-kicker {
   color: var(--clay);
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 760;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.05em;
 }
 
 .dict-morphology-chain {
@@ -3261,40 +3273,40 @@ svg {
   gap: 3px;
   color: var(--moss);
   font-family: var(--serif);
-  font-size: 15px;
+  font-size: 16px;
 }
 
 .dict-morphology-chain button {
   color: var(--moss);
   border-bottom: 1px solid rgba(64, 91, 75, 0.35);
   font-family: var(--serif);
-  font-size: 17px;
+  font-size: 19px;
   font-weight: 550;
 }
 
 .dict-morphology-chain > span {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .dict-morphology em {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 11px;
   font-style: normal;
 }
 
 .dict-morphology small {
   width: 100%;
-  color: var(--faint);
-  font-size: 8.5px;
-  line-height: 1.55;
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  line-height: 1.7;
 }
 
 .word-formation {
   padding: 11px 12px;
   border-left: 2px solid var(--highlighter);
   background: rgba(242, 202, 84, 0.08);
-  font-size: 9.5px;
+  font-size: 12px;
   line-height: 1.7;
 }
 
@@ -3314,8 +3326,8 @@ svg {
 .word-formation small {
   display: block;
   margin-top: 8px;
-  color: var(--faint);
-  font-size: 8px;
+  color: var(--muted);
+  font-size: 11px;
 }
 
 @keyframes skeleton {
@@ -3660,6 +3672,8 @@ svg {
 }
 
 .dict-prior-list {
+  max-height: 230px;
+  overflow-y: auto;
   border-top: 1px solid var(--line);
 }
 

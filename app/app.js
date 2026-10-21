@@ -283,6 +283,7 @@ const state = {
   currentText: "",
   readProgressPercent: 0,
   readParagraphs: new Set(),
+  lastReadParagraph: null,
   readerRailWidth: Math.max(
     120,
     Number(savedReaderLayout.railWidth) || (window.innerWidth <= 1280 ? 190 : 214),
@@ -335,6 +336,7 @@ const state = {
   pendingDictMeta: null,
   pendingPageByBook: {},
   pendingHighlightJump: null,
+  pendingReadingAnchor: null,
   startContentForBookId: "",
   readerToken: 0,
   ocr: {
@@ -563,6 +565,7 @@ function navigate(route) {
 
 async function init() {
   bindEvents();
+  applySelectionPreviewColor(state.selectedColor);
   try {
     const response = await fetch("data/books.json");
     if (!response.ok) throw new Error("Book catalog unavailable");
@@ -1608,17 +1611,32 @@ async function openReader(bookId, options = {}) {
     state.currentText = text;
     state.paragraphs = parseParagraphs(text);
     state.readParagraphs = loadReadParagraphs(book.id);
+    state.pendingReadingAnchor = null;
     state.paragraphNoise = analyzeParagraphNoise(state.paragraphs, book);
     rebuildParagraphView();
     state.readProgressPercent = computeReadingPercent();
     remapHighlights(book.id, state.paragraphs);
     const saved = safeRead(STORAGE.progress, {})[book.id];
+    state.lastReadParagraph = resolveLastReadParagraph(saved, state.readParagraphs);
     const pendingParagraph = state.pendingPageByBook[book.id];
     delete state.pendingPageByBook[book.id];
     let requestedPage = Number.isFinite(options.page) ? options.page : null;
     if (requestedPage === null && Number.isFinite(pendingParagraph)) {
       const position = state.visibleParagraphs.findIndex((index) => index >= pendingParagraph);
       requestedPage = Math.floor(Math.max(0, position) / PAGE_SIZE);
+    }
+    if (
+      requestedPage === null &&
+      !state.pendingHighlightJump &&
+      Number.isInteger(state.lastReadParagraph)
+    ) {
+      const resumeParagraph =
+        nextUnreadParagraphAfter(state.lastReadParagraph) ?? state.lastReadParagraph;
+      const position = state.visibleParagraphs.findIndex((index) => index >= resumeParagraph);
+      if (position >= 0) {
+        requestedPage = Math.floor(position / PAGE_SIZE);
+        state.pendingReadingAnchor = state.visibleParagraphs[position];
+      }
     }
     if (requestedPage === null) {
       if (saved?.layout === 2 && Number.isFinite(Number(saved?.paragraph))) {
@@ -1645,6 +1663,7 @@ async function openReader(bookId, options = {}) {
     renderReaderShell();
     saveProgress();
     scrollToPendingHighlight(book.id);
+    scrollToPendingReadingAnchor(book.id);
     prefetchCurrentPageTranslations();
     if (book.id.startsWith("import-")) {
       prefetchAllImportedTranslations();
@@ -1717,7 +1736,7 @@ function renderReaderCover() {
           <div class="landing-actions">
             ${
               canRead
-                ? `<button class="button-primary landing-start" type="button" data-action="start-book-reading" data-page="${progress ? savedPage : 0}">
+                ? `<button class="button-primary landing-start" type="button" data-action="start-book-reading" data-page="${progress ? savedPage : 0}" data-resume="${progress ? "true" : "false"}">
                     <svg><use href="#i-reader"></use></svg>
                     ${progress ? "继续阅读" : "开始阅读"}
                   </button>
@@ -2525,8 +2544,15 @@ function toggleReadParagraph(index) {
   if (!state.currentBook) return;
   if (state.readParagraphs.has(index)) {
     state.readParagraphs.delete(index);
+    if (state.lastReadParagraph === index) {
+      const previous = [...state.readParagraphs]
+        .filter((item) => Number.isInteger(item) && item < index)
+        .sort((a, b) => b - a);
+      state.lastReadParagraph = previous[0] ?? null;
+    }
   } else {
     state.readParagraphs.add(index);
+    state.lastReadParagraph = index;
   }
   persistReadParagraphs();
   state.readProgressPercent = computeReadingPercent();
@@ -2610,6 +2636,26 @@ function computeReadingPercent() {
   return readParagraphStats().percent;
 }
 
+function resolveLastReadParagraph(saved, readParagraphs) {
+  const stored = Number(saved?.lastReadParagraph);
+  if (Number.isInteger(stored) && stored >= 0) return stored;
+  const read = [...readParagraphs].filter((value) => Number.isInteger(value) && value >= 0);
+  return read.length ? Math.max(...read) : null;
+}
+
+function nextUnreadParagraphAfter(anchorParagraph) {
+  if (!Number.isInteger(anchorParagraph) || anchorParagraph < 0) return null;
+  const start = state.visibleParagraphs.findIndex((index) => index > anchorParagraph);
+  if (start < 0) return null;
+  for (let position = start; position < state.visibleParagraphs.length; position += 1) {
+    const index = state.visibleParagraphs[position];
+    if (!state.readParagraphs.has(index) && !isChapterHeading(state.paragraphs[index] || "")) {
+      return index;
+    }
+  }
+  return null;
+}
+
 function loadReadParagraphs(bookId) {
   const stored = safeRead(STORAGE.readParagraphs, {});
   const values = Array.isArray(stored?.[bookId]) ? stored[bookId] : [];
@@ -2632,6 +2678,8 @@ function saveProgress() {
     author: state.currentBook.author,
     page: state.page,
     paragraph: currentPageParagraphIndices()[0] ?? 0,
+    lastReadParagraph: Number.isInteger(state.lastReadParagraph) ? state.lastReadParagraph : null,
+    lastViewedParagraph: currentPageParagraphIndices()[0] ?? 0,
     layout: 2,
     totalPages: state.totalPages,
     percent: state.readProgressPercent || 0,
@@ -2942,9 +2990,22 @@ function hideSelectionToolbar() {
   state.selection = null;
 }
 
+const SELECTION_PREVIEW_COLORS = {
+  yellow: "rgba(242, 202, 84, 0.58)",
+  green: "rgba(145, 181, 140, 0.56)",
+  pink: "rgba(226, 160, 170, 0.54)",
+  blue: "rgba(148, 180, 206, 0.52)",
+};
+
+function applySelectionPreviewColor(color) {
+  const background = SELECTION_PREVIEW_COLORS[color] || SELECTION_PREVIEW_COLORS.yellow;
+  document.documentElement.style.setProperty("--selection-color", background);
+}
+
 function setHighlightColor(color) {
   state.selectedColor = color;
   safeWrite(STORAGE.selectedColor, color);
+  applySelectionPreviewColor(color);
   document.querySelectorAll("[data-highlight-color]").forEach((dot) => {
     const active = dot.dataset.highlightColor === color;
     dot.classList.toggle("is-active", active);
@@ -2971,12 +3032,18 @@ async function confirmHighlight() {
   const added = addHighlight(highlight);
   hideSelectionToolbar();
   if (!added) return;
+  const previousCount = priorHighlightRecordsFor(current.query).length;
 
-  showToast(`已标记「${current.query}」`, {
-    icon: "i-highlight",
-    actionLabel: "撤销",
-    onAction: () => removeHighlightById(state.currentBook.id, highlight.id),
-  });
+  showToast(
+    previousCount
+      ? `已标记「${current.query}」；前面还有 ${previousCount} 处，右侧已列出原位置`
+      : `已标记「${current.query}」`,
+    {
+      icon: "i-highlight",
+      actionLabel: "撤销",
+      onAction: () => removeHighlightById(state.currentBook.id, highlight.id),
+    },
+  );
 
   openDictionary(current.query, {
     bookId: state.currentBook.id,
@@ -5346,6 +5413,21 @@ function scrollToPendingHighlight(bookId) {
   }, 120);
 }
 
+function scrollToPendingReadingAnchor(bookId) {
+  const anchor = state.pendingReadingAnchor;
+  if (!Number.isInteger(anchor) || state.currentBook?.id !== bookId) return;
+  state.pendingReadingAnchor = null;
+  window.setTimeout(() => {
+    const paragraph = document.querySelector(
+      `.reader-paragraph[data-paragraph="${anchor}"]`,
+    );
+    if (!paragraph) return;
+    paragraph.scrollIntoView({ behavior: "smooth", block: "center" });
+    paragraph.classList.add("is-resume-target");
+    window.setTimeout(() => paragraph.classList.remove("is-resume-target"), 2200);
+  }, 140);
+}
+
 function wordRowMarkup(item) {
   const sourceBook = item.sourceBookId ? findBook(item.sourceBookId) : null;
   const sourceLabel = sourceBook?.titleZh
@@ -6765,7 +6847,9 @@ function bindEvents() {
         if (state.currentBook) {
           openReader(state.currentBook.id, {
             startContent: true,
-            page: Number(actionButton.dataset.page || 0),
+            ...(actionButton.dataset.resume === "true"
+              ? {}
+              : { page: Number(actionButton.dataset.page || 0) }),
           });
         }
         break;
