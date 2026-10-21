@@ -8219,6 +8219,24 @@ svg {
   }
 }
 
+@media (max-width: 430px) {
+  .reader-tools {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-top: 10px;
+    padding-bottom: 12px;
+  }
+
+  .reader-tools-left,
+  .reader-tools-right {
+    gap: 6px;
+  }
+
+  .reader-tools-right {
+    margin-left: auto;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
