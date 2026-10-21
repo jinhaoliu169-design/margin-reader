@@ -334,6 +334,7 @@ const state = {
   pendingDictQuery: "",
   pendingDictMeta: null,
   pendingPageByBook: {},
+  pendingHighlightJump: null,
   startContentForBookId: "",
   readerToken: 0,
   ocr: {
@@ -1643,6 +1644,7 @@ async function openReader(bookId, options = {}) {
     state.readerLoading = false;
     renderReaderShell();
     saveProgress();
+    scrollToPendingHighlight(book.id);
     prefetchCurrentPageTranslations();
     if (book.id.startsWith("import-")) {
       prefetchAllImportedTranslations();
@@ -2765,6 +2767,28 @@ function removeHighlightById(bookId, highlightId) {
   if (state.currentBook?.id === bookId) renderReaderPage();
 }
 
+function changeHighlightColor(bookId, highlightId, color) {
+  if (!HIGHLIGHT_COLOR_LABELS[color]) return;
+  const highlights = getHighlights(bookId);
+  const target = highlights.find((item) => item.id === highlightId);
+  if (!target) return;
+  if (target.kind === "person") {
+    showToast("人名备注保持绿色，请通过人物备注管理。", { icon: "i-user" });
+    return;
+  }
+  setHighlightColor(color);
+  if ((target.color || "yellow") === color) return;
+  const updated = highlights.map((item) =>
+    item.id === highlightId ? { ...item, color, updatedAt: Date.now() } : item,
+  );
+  saveHighlights(bookId, updated);
+  if (state.currentBook?.id === bookId) renderReaderPage();
+  renderDictionaryPanel();
+  showToast(`已将「${target.text || target.id}」改为${HIGHLIGHT_COLOR_LABELS[color]}高亮`, {
+    icon: "i-highlight",
+  });
+}
+
 function handleSelectionChange() {
   window.clearTimeout(selectionTimer);
   selectionTimer = window.setTimeout(inspectSelection, 100);
@@ -2939,6 +2963,8 @@ async function confirmHighlight() {
     start: current.start,
     end: current.end,
     text: current.text,
+    page: state.page + 1,
+    paragraphNumber: current.paragraph + 1,
     color: state.selectedColor || "yellow",
     createdAt: Date.now(),
   };
@@ -3210,6 +3236,8 @@ function savePersonNote() {
     start: draft.start,
     end: draft.end,
     text: draft.text,
+    page: state.page + 1,
+    paragraphNumber: draft.paragraph + 1,
     color: "green",
     createdAt: Date.now(),
     kind: "person",
@@ -3944,6 +3972,134 @@ function dictionaryContextMarkup() {
   `;
 }
 
+const HIGHLIGHT_COLOR_LABELS = {
+  yellow: "黄色",
+  green: "绿色",
+  pink: "粉色",
+  blue: "蓝色",
+};
+
+function currentDictionaryHighlight() {
+  const meta = state.dictionary?.meta || {};
+  const bookId = meta.bookId || state.currentBook?.id || "";
+  if (!meta.highlightId || !bookId) return null;
+  return getHighlights(bookId).find((item) => item.id === meta.highlightId) || null;
+}
+
+function dictionaryHighlightColorMarkup(highlight) {
+  if (!highlight) return "";
+  const activeColor = highlight.color || "yellow";
+  if (highlight.kind === "person") {
+    return `
+      <div class="dict-color-row dict-color-row-person">
+        <span class="dict-color-label">标记颜色</span>
+        <span class="dict-color-person-note"><i aria-hidden="true"></i>人名备注保持绿色，可在「我的」中修改或删除备注。</span>
+      </div>
+    `;
+  }
+  return `
+    <div class="dict-color-row">
+      <span class="dict-color-label">标记颜色</span>
+      <div class="dict-color-choices" role="group" aria-label="更换当前标记颜色">
+        ${Object.entries(HIGHLIGHT_COLOR_LABELS)
+          .map(
+            ([color, label]) => `
+              <button
+                class="dict-color-choice ${activeColor === color ? "is-active" : ""}"
+                type="button"
+                data-action="change-highlight-color"
+                data-book-id="${escapeHtml(state.dictionary?.meta?.bookId || state.currentBook?.id || "")}"
+                data-highlight-id="${escapeHtml(highlight.id)}"
+                data-mark-color="${color}"
+                aria-pressed="${activeColor === color}"
+                aria-label="改为${label}高亮"
+                title="改为${label}"
+              >
+                <i class="hl-${color}" aria-hidden="true"></i>
+                <span>${label}</span>
+              </button>
+            `,
+          )
+          .join("")}
+      </div>
+      <small>点击颜色即可覆盖当前高亮</small>
+    </div>
+  `;
+}
+
+function highlightPageNumber(item) {
+  const storedPage = Number(item?.page);
+  if (Number.isFinite(storedPage) && storedPage > 0) return storedPage;
+  const paragraph = Number(item?.paragraph);
+  if (!Number.isInteger(paragraph) || paragraph < 0) return 1;
+  if (item.bookId === state.currentBook?.id && state.visibleParagraphs.length) {
+    const position = state.visibleParagraphs.indexOf(paragraph);
+    if (position >= 0) return Math.floor(position / PAGE_SIZE) + 1;
+  }
+  return Math.floor(paragraph / PAGE_SIZE) + 1;
+}
+
+function highlightParagraphNumber(item) {
+  const paragraph = Number(item?.paragraph);
+  if (!Number.isInteger(paragraph) || paragraph < 0) return 1;
+  if (item.bookId === state.currentBook?.id && state.visibleParagraphs.length) {
+    const position = state.visibleParagraphs.indexOf(paragraph);
+    if (position >= 0) return position + 1;
+  }
+  return paragraph + 1;
+}
+
+function priorHighlightRecordsFor(word, currentHighlightId = "") {
+  const normalized = normalizeWord(word).toLowerCase();
+  if (!normalized) return [];
+  return allHighlightRecords().filter(
+    (item) =>
+      item.id !== currentHighlightId &&
+      normalizeWord(item.text).toLowerCase() === normalized,
+  );
+}
+
+function dictionaryPriorHighlightsMarkup(data, currentHighlightId = "") {
+  const records = priorHighlightRecordsFor(data?.word || state.dictionary?.query || "", currentHighlightId);
+  if (!records.length) return "";
+  return `
+    <details class="dict-prior-marks" open>
+      <summary>
+        <span>这个单词的过往标记</span>
+        <strong>${records.length} 处</strong>
+      </summary>
+      <div class="dict-prior-list">
+        ${records
+          .map((item) => {
+            const book = findBook(item.bookId);
+            const bookLabel = book?.titleZh
+              ? `${book.titleZh} · ${book.title}`
+              : book?.title || "已移除的书";
+            const page = highlightPageNumber(item);
+            const paragraph = highlightParagraphNumber(item);
+            return `
+              <button
+                class="dict-prior-row"
+                type="button"
+                data-action="open-highlight-source"
+                data-highlight-id="${escapeHtml(item.id)}"
+                aria-label="回到 ${escapeHtml(bookLabel)} 第 ${page} 页第 ${paragraph} 段的原文"
+              >
+                <span class="dict-prior-swatch hl-${escapeHtml(item.color || "yellow")}" aria-hidden="true"></span>
+                <span class="dict-prior-copy">
+                  <strong>${escapeHtml(bookLabel)}</strong>
+                  <small>第 ${page} 页 · 第 ${paragraph} 段 · ${formatShortDate(item.createdAt)}</small>
+                </span>
+                <svg><use href="#i-arrow"></use></svg>
+              </button>
+            `;
+          })
+          .join("")}
+      </div>
+    </details>
+  `;
+}
+
 function dictionaryEntryMarkup(data) {
   if (!data) return dictionaryErrorMarkup();
   const saved = isWordSaved(data.word);
@@ -3957,6 +4113,7 @@ function dictionaryEntryMarkup(data) {
   const rootAnalysis = data.morphology || data.rootAnalysis;
   const image = (data.images || [])[0];
   const linkedHighlight = state.dictionary?.meta?.highlightId;
+  const activeHighlight = currentDictionaryHighlight();
   return `
     <div class="dictionary-entry">
       <div class="dict-head">
@@ -3992,6 +4149,8 @@ function dictionaryEntryMarkup(data) {
       ${dictionaryContextMarkup()}
       ${dictionaryMorphologyMarkup(data)}
       ${dictionarySaveMarkup(data, saved, linkedHighlight)}
+      ${dictionaryHighlightColorMarkup(activeHighlight)}
+      ${dictionaryPriorHighlightsMarkup(data, linkedHighlight)}
       <div class="dict-tabs" role="tablist" aria-label="词典内容">
         ${dictionaryTab("simple", "简明", tab)}
         ${dictionaryTab("examples", `例句${examples.length ? ` ${examples.length}` : ""}`, tab)}
@@ -5126,16 +5285,15 @@ function allHighlightRecords() {
 
 function highlightRowMarkup(item) {
   const book = findBook(item.bookId);
-  const page = Number.isFinite(Number(item.paragraph))
-    ? Math.floor(Number(item.paragraph) / PAGE_SIZE) + 1
-    : 1;
+  const page = highlightPageNumber(item);
+  const paragraph = highlightParagraphNumber(item);
   const bookLabel = book?.titleZh ? `${book.titleZh} / ${book.title}` : book?.title || "已移除的书";
   return `
     <article class="highlight-record">
       <span class="highlight-record-swatch hl-${escapeHtml(item.color || "yellow")}" aria-hidden="true"></span>
       <div class="highlight-record-quote">
         <strong>${escapeHtml(item.text)}</strong>
-        <span>${escapeHtml(bookLabel)} · 第 ${page} 页</span>
+        <span>${escapeHtml(bookLabel)} · 第 ${page} 页 · 第 ${paragraph} 段</span>
       </div>
       <div class="highlight-record-date">${formatShortDate(item.createdAt)}</div>
       <div class="highlight-record-actions">
@@ -5159,8 +5317,33 @@ function openHighlightSource(highlightId) {
     return;
   }
   state.pendingPageByBook[item.bookId] = Number(item.paragraph || 0);
+  state.pendingHighlightJump = {
+    bookId: item.bookId,
+    highlightId: item.id,
+    paragraph: Number(item.paragraph || 0),
+  };
   state.startContentForBookId = item.bookId;
   navigate(`#/read/${encodeURIComponent(item.bookId)}`);
+}
+
+function scrollToPendingHighlight(bookId) {
+  const pending = state.pendingHighlightJump;
+  if (!pending || pending.bookId !== bookId) return;
+  state.pendingHighlightJump = null;
+  window.setTimeout(() => {
+    const marks = [...document.querySelectorAll("mark[data-highlight-id]")];
+    const targetMark = marks.find((mark) => mark.dataset.highlightId === pending.highlightId);
+    const paragraph = document.querySelector(
+      `.reader-paragraph[data-paragraph="${Number(pending.paragraph)}"]`,
+    );
+    const target = targetMark || paragraph;
+    if (!target) return;
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (targetMark) {
+      targetMark.classList.add("is-jump-target");
+      window.setTimeout(() => targetMark.classList.remove("is-jump-target"), 1800);
+    }
+  }, 120);
 }
 
 function wordRowMarkup(item) {
@@ -6906,6 +7089,13 @@ function bindEvents() {
         break;
       case "open-highlight-source":
         openHighlightSource(actionButton.dataset.highlightId);
+        break;
+      case "change-highlight-color":
+        changeHighlightColor(
+          actionButton.dataset.bookId,
+          actionButton.dataset.highlightId,
+          actionButton.dataset.markColor,
+        );
         break;
       case "remove-highlight":
         removeHighlightById(actionButton.dataset.bookId, actionButton.dataset.highlightId);

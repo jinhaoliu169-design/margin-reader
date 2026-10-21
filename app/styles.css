@@ -2837,6 +2837,18 @@ svg {
   background: rgba(148, 180, 206, 0.48);
 }
 
+.reader-paragraph mark.is-jump-target {
+  outline: 2px solid var(--moss);
+  outline-offset: 3px;
+  animation: highlight-arrival 900ms var(--ease);
+}
+
+@keyframes highlight-arrival {
+  50% {
+    outline-offset: 6px;
+  }
+}
+
 .reader-loading {
   display: grid;
   min-height: 430px;
@@ -3502,6 +3514,225 @@ svg {
   color: var(--muted);
   border-top: 1px dashed var(--line);
   font-size: 11.5px;
+}
+
+.dict-color-row {
+  display: grid;
+  gap: 8px;
+  margin: 0 22px 15px;
+  padding: 12px 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+}
+
+.dict-color-label {
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.dict-color-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.dict-color-choice {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--paper-bright);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.dict-color-choice:hover,
+.dict-color-choice.is-active {
+  color: var(--ink);
+  border-color: var(--ink-soft);
+  background: var(--paper-bright);
+}
+
+.dict-color-choice.is-active {
+  outline: 2px solid var(--moss);
+  outline-offset: 1px;
+}
+
+.dict-color-choice i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+}
+
+.dict-color-choice i.hl-yellow {
+  background: var(--highlighter);
+}
+
+.dict-color-choice i.hl-green {
+  background: #91b58c;
+}
+
+.dict-color-choice i.hl-pink {
+  background: #e2a0aa;
+}
+
+.dict-color-choice i.hl-blue {
+  background: #94b4ce;
+}
+
+.dict-color-row > small {
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.dict-color-person-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink-soft);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.dict-color-person-note i {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #91b58c;
+}
+
+.dict-prior-marks {
+  margin: 0 22px 15px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper-deep);
+}
+
+.dict-prior-marks summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 13px;
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+
+.dict-prior-marks summary::-webkit-details-marker {
+  display: none;
+}
+
+.dict-prior-marks summary::before {
+  width: 7px;
+  height: 7px;
+  margin-right: 2px;
+  border-right: 1.5px solid var(--muted);
+  border-bottom: 1.5px solid var(--muted);
+  content: "";
+  transform: rotate(-45deg);
+  transition: transform 150ms var(--ease);
+}
+
+.dict-prior-marks[open] summary::before {
+  transform: rotate(45deg) translateY(-2px);
+}
+
+.dict-prior-marks summary span {
+  flex: 1;
+}
+
+.dict-prior-marks summary strong {
+  color: var(--moss);
+  font-family: var(--serif);
+  font-size: 12px;
+  font-weight: 560;
+}
+
+.dict-prior-list {
+  border-top: 1px solid var(--line);
+}
+
+.dict-prior-row {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 4px minmax(0, 1fr) 14px;
+  gap: 10px;
+  align-items: center;
+  padding: 11px 13px;
+  color: var(--ink-soft);
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+
+.dict-prior-row:last-child {
+  border-bottom: 0;
+}
+
+.dict-prior-row:hover {
+  background: rgba(255, 251, 243, 0.58);
+}
+
+.dict-prior-swatch {
+  width: 4px;
+  height: 28px;
+  border-radius: 99px;
+}
+
+.dict-prior-swatch.hl-yellow {
+  background: var(--highlighter);
+}
+
+.dict-prior-swatch.hl-green {
+  background: #91b58c;
+}
+
+.dict-prior-swatch.hl-pink {
+  background: #e2a0aa;
+}
+
+.dict-prior-swatch.hl-blue {
+  background: #94b4ce;
+}
+
+.dict-prior-copy {
+  min-width: 0;
+}
+
+.dict-prior-copy strong,
+.dict-prior-copy small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dict-prior-copy strong {
+  font-family: var(--serif);
+  font-size: 13px;
+  font-weight: 560;
+}
+
+.dict-prior-copy small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 10.5px;
+}
+
+.dict-prior-row > svg {
+  width: 13px;
+  height: 13px;
+  color: var(--faint);
 }
 
 .dict-fallback-note {
