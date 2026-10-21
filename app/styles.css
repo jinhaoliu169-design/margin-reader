@@ -2308,10 +2308,11 @@ svg {
 }
 
 .reader-sheet {
+  --reader-sheet-pad-x: clamp(36px, 5vw, 67px);
   position: relative;
   grid-column: 2;
   min-height: 76vh;
-  padding: 54px clamp(36px, 5vw, 67px) 48px;
+  padding: 54px var(--reader-sheet-pad-x) 48px;
   border: 1px solid var(--line);
   border-radius: 3px;
   background: var(--paper-bright);
@@ -2411,12 +2412,18 @@ svg {
 }
 
 .reader-tools {
+  position: sticky;
+  z-index: 24;
+  top: var(--topbar-height);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding: 15px 0 19px;
+  margin: 0 calc(var(--reader-sheet-pad-x) * -1);
+  padding: 13px var(--reader-sheet-pad-x) 15px;
   color: var(--muted);
+  border-bottom: 1px solid var(--line);
+  background: var(--paper-bright);
   font-size: 9.5px;
 }
 
@@ -7303,6 +7310,7 @@ svg {
   }
 
   .reader-sheet {
+    --reader-sheet-pad-x: 45px;
     padding-right: 45px;
     padding-left: 45px;
   }
@@ -7654,6 +7662,7 @@ svg {
   }
 
   .reader-sheet {
+    --reader-sheet-pad-x: 29px;
     padding: 37px 29px 34px;
     border-radius: 2px;
   }
@@ -8001,6 +8010,7 @@ svg {
   }
 
   .reader-sheet {
+    --reader-sheet-pad-x: 25px;
     margin: 0 -14px;
     padding: 33px 25px 30px;
     border-right: 0;
