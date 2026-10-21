@@ -2419,7 +2419,7 @@ svg {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  margin: 0 calc(var(--reader-sheet-pad-x) * -1);
+  margin: 0 calc(0px - var(--reader-sheet-pad-x));
   padding: 13px var(--reader-sheet-pad-x) 15px;
   color: var(--muted);
   border-bottom: 1px solid var(--line);
