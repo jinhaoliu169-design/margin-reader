@@ -3145,33 +3145,32 @@ function sentenceSpanAt(text, offset) {
 }
 
 function speakTextOnly(text, paragraphIndex, mode = "selection") {
-  const synth = "speechSynthesis" in window ? window.speechSynthesis : null;
-  if (!synth) {
-    showToast("这个浏览器暂时不支持英语朗读。", { icon: "i-volume" });
-    return false;
-  }
   const clean = String(text || "").trim();
   if (!clean) return false;
   stopSpeech();
   const token = speechState.token;
+  const controller = new AbortController();
+  speechState.controller = controller;
   speechState.mode = mode;
   speechState.paragraphIndex = paragraphIndex;
   speechState.text = clean;
   speechState.paused = false;
-  const utterance = makeReadUtterance(clean);
-  utterance.onend = () => {
+  playReadAloud(clean, controller.signal).then((result) => {
     if (speechState.token !== token) return;
-    speechState.mode = null;
-    speechState.paragraphIndex = null;
-    speechState.text = "";
-    updateSpeechUi();
-  };
-  utterance.onerror = () => {
-    if (speechState.token !== token) return;
-    stopSpeech();
-    showToast("这句暂时无法朗读。", { icon: "i-volume" });
-  };
-  synth.speak(utterance);
+    if (result === "ended") {
+      speechState.mode = null;
+      speechState.paragraphIndex = null;
+      speechState.text = "";
+      speechState.engine = null;
+      speechState.controller = null;
+      updateSpeechUi();
+      return;
+    }
+    if (result === "error") {
+      stopSpeech();
+      showToast("这句暂时无法朗读。", { icon: "i-volume" });
+    }
+  });
   updateSpeechUi();
   return true;
 }
@@ -3189,11 +3188,6 @@ function readSelectionOnly() {
 function readFromSelection() {
   const current = readSelectionAction();
   if (!current || !state.currentBook) return;
-  const synth = "speechSynthesis" in window ? window.speechSynthesis : null;
-  if (!synth) {
-    showToast("这个浏览器暂时不支持英语朗读。", { icon: "i-volume" });
-    return false;
-  }
   const paragraph = state.paragraphs[current.paragraph] || "";
   const sentence = sentenceSpanAt(paragraph, current.start);
   const firstText = paragraph.slice(sentence.start).trim();
@@ -3212,6 +3206,7 @@ function readFromSelection() {
   speechState.queue = queue;
   speechState.queueIndex = 0;
   speechState.paused = false;
+  speechState.controller = new AbortController();
   speakNextFull(speechState.token);
   showToast("从这一句开始往后朗读。", { icon: "i-volume", duration: 2400 });
 }
@@ -4505,6 +4500,10 @@ let speechState = {
   token: 0,
   queue: [],
   queueIndex: 0,
+  engine: null,
+  audio: null,
+  controller: null,
+  pauseWaiters: [],
 };
 
 function normalizeReadingSpeed(value) {
@@ -4563,59 +4562,222 @@ function tryPlayAudioSource(url) {
 }
 
 function speakWithBrowser(text) {
-  return new Promise((resolve) => {
-    if (!text || !("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) {
-      resolve(false);
-      return;
-    }
-    const synth = window.speechSynthesis;
-    synth.cancel();
-    const utterance = new SpeechSynthesisUtterance(
-      String(text)
-        .replace(/[_*#]+/g, " ")
-        .replace(/\s+/g, " ")
-        .trim(),
-    );
-    utterance.lang = "en-US";
-    utterance.rate = 0.86;
-    utterance.pitch = 1;
-    const voices = synth.getVoices();
-    const preferred =
-      voices.find((voice) => /en[-_]US/i.test(voice.lang)) ||
-      voices.find((voice) => /en[-_]GB/i.test(voice.lang)) ||
-      voices.find((voice) => /^en/i.test(voice.lang));
-    if (preferred) utterance.voice = preferred;
-    let settled = false;
-    const finish = (ok) => {
-      if (settled) return;
-      settled = true;
-      window.clearTimeout(timeout);
-      resolve(ok);
-    };
-    const timeout = window.setTimeout(() => finish(true), Math.max(4500, String(text).length * 140));
-    utterance.onend = () => finish(true);
-    utterance.onerror = () => finish(false);
-    synth.speak(utterance);
-  });
+  return startBrowserSpeech(text, 0.86);
 }
 
 function chooseAmericanVoice(synth) {
   const voices = synth.getVoices();
-  const preferredNames = /samantha|aria|jenny|guy|microsoft.*(aria|guy)|google us english/i;
-  return (
-    voices.find((voice) => /en[-_]US/i.test(voice.lang) && preferredNames.test(voice.name)) ||
-    voices.find((voice) => /en[-_]US/i.test(voice.lang)) ||
-    voices.find((voice) => /^en/i.test(voice.lang)) ||
-    null
-  );
+  const preferredNames = /samantha|aria|jenny|guy|zira|david|mark|google us english/i;
+  const ranked = voices
+    .map((voice) => {
+      let score = 0;
+      if (/en[-_]US/i.test(voice.lang)) score += 100;
+      else if (/en[-_]GB/i.test(voice.lang)) score += 80;
+      else if (/^en/i.test(voice.lang)) score += 60;
+      else return null;
+      if (voice.localService === true) score += 30;
+      else if (voice.localService !== false) score += 10;
+      if (preferredNames.test(voice.name)) score += 5;
+      return { voice, score };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score);
+  return ranked[0]?.voice || null;
+}
+
+function normalizeSpeechText(text) {
+  return String(text || "")
+    .replace(/[_*#]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function splitSpeechText(text, maxLength = 180) {
+  const source = normalizeSpeechText(text);
+  if (!source) return [];
+  const chunks = [];
+  let rest = source;
+  while (rest.length > maxLength) {
+    const windowText = rest.slice(0, maxLength + 1);
+    let cut = -1;
+    const boundary = /[.!?;:](?:["')\]]+)?\s/g;
+    let match;
+    while ((match = boundary.exec(windowText))) {
+      if (match.index + match[0].length <= maxLength) cut = match.index + match[0].length;
+    }
+    if (cut < maxLength * 0.45) cut = windowText.lastIndexOf(" ", maxLength);
+    if (cut < maxLength * 0.3) cut = maxLength;
+    chunks.push(rest.slice(0, cut).trim());
+    rest = rest.slice(cut).trim();
+  }
+  if (rest) chunks.push(rest);
+  return chunks.filter(Boolean);
+}
+
+function startBrowserSpeech(text, rate = state.readingSpeed, signal = null) {
+  return new Promise((resolve) => {
+    const clean = normalizeSpeechText(text);
+    if (
+      !clean ||
+      !("speechSynthesis" in window) ||
+      !("SpeechSynthesisUtterance" in window) ||
+      signal?.aborted
+    ) {
+      resolve(false);
+      return;
+    }
+    const synth = window.speechSynthesis;
+    const utterance = new SpeechSynthesisUtterance(clean);
+    utterance.lang = "en-US";
+    utterance.rate = rate;
+    utterance.pitch = 1;
+    utterance.volume = 1;
+    const voice = chooseAmericanVoice(synth);
+    if (voice) utterance.voice = voice;
+
+    let settled = false;
+    let started = false;
+    const clearPending = () => {
+      window.clearTimeout(startTimeout);
+      signal?.removeEventListener("abort", abort);
+    };
+    const finish = (ok) => {
+      if (settled) return;
+      settled = true;
+      clearPending();
+      resolve(ok);
+    };
+    const abort = () => {
+      utterance.onstart = null;
+      utterance.onend = null;
+      utterance.onerror = null;
+      finish(false);
+    };
+    utterance.onstart = () => {
+      started = true;
+      speechState.engine = "browser";
+      window.clearTimeout(startTimeout);
+    };
+    utterance.onend = () => finish(started);
+    utterance.onerror = () => finish(false);
+    signal?.addEventListener("abort", abort, { once: true });
+    const startTimeout = window.setTimeout(
+      () => {
+        if (started) return;
+        try {
+          synth.cancel();
+        } catch {
+          // The fallback audio engine will handle playback.
+        }
+        finish(false);
+      },
+      voice?.localService === false ? 8000 : 3500,
+    );
+    try {
+      // Chromium can leave its speech queue paused after a cancel.
+      synth.resume();
+      synth.speak(utterance);
+    } catch {
+      finish(false);
+    }
+  });
+}
+
+function startRemoteSpeechChunk(text, signal = null) {
+  return new Promise((resolve) => {
+    if (!text || signal?.aborted) {
+      resolve(false);
+      return;
+    }
+    const audio = new Audio(
+      `https://translate.googleapis.com/translate_tts?ie=UTF-8&client=gtx&tl=en&q=${encodeURIComponent(text)}`,
+    );
+    speechState.engine = "audio";
+    speechState.audio = audio;
+    audio.preload = "auto";
+    audio.playbackRate = state.readingSpeed;
+    let settled = false;
+    const finish = (ok) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(startTimeout);
+      signal?.removeEventListener("abort", abort);
+      audio.onended = null;
+      audio.onerror = null;
+      if (speechState.audio === audio) speechState.audio = null;
+      resolve(ok);
+    };
+    const abort = () => {
+      audio.pause();
+      audio.removeAttribute("src");
+      finish(false);
+    };
+    const startTimeout = window.setTimeout(() => {
+      audio.pause();
+      audio.removeAttribute("src");
+      finish(false);
+    }, 7000);
+    audio.addEventListener("playing", () => window.clearTimeout(startTimeout), { once: true });
+    audio.onended = () => finish(true);
+    audio.onerror = () => finish(false);
+    signal?.addEventListener("abort", abort, { once: true });
+    audio.play().catch(() => finish(false));
+  });
+}
+
+async function waitWhileSpeechPaused(signal) {
+  if (!speechState.paused || signal?.aborted) return;
+  await new Promise((resolve) => {
+    const done = () => {
+      signal?.removeEventListener("abort", done);
+      resolve();
+    };
+    speechState.pauseWaiters.push(done);
+    signal?.addEventListener("abort", done, { once: true });
+  });
+}
+
+async function playReadAloud(text, signal) {
+  const chunks = splitSpeechText(text);
+  if (!chunks.length) return "error";
+  for (const chunk of chunks) {
+    if (signal?.aborted) return "cancelled";
+    await waitWhileSpeechPaused(signal);
+    if (signal?.aborted) return "cancelled";
+    if (await startBrowserSpeech(chunk, state.readingSpeed, signal)) continue;
+    if (signal?.aborted) return "cancelled";
+    if (!(await startRemoteSpeechChunk(chunk, signal))) {
+      return signal?.aborted ? "cancelled" : "error";
+    }
+  }
+  return signal?.aborted ? "cancelled" : "ended";
+}
+
+function setSpeechPaused(paused) {
+  const next = Boolean(paused);
+  speechState.paused = next;
+  if (!next) {
+    speechState.pauseWaiters.splice(0).forEach((resume) => resume());
+  }
+  if (speechState.engine === "audio" && speechState.audio) {
+    if (next) {
+      speechState.audio.pause();
+    } else {
+      speechState.audio.play().catch(() => {
+        stopSpeech();
+        showToast("朗读暂时无法继续，请重新点击朗读。", { icon: "i-volume" });
+      });
+    }
+  } else if ("speechSynthesis" in window) {
+    if (next) window.speechSynthesis.pause();
+    else window.speechSynthesis.resume();
+  }
+  updateSpeechUi();
 }
 
 function makeReadUtterance(text) {
   const utterance = new SpeechSynthesisUtterance(
-    String(text || "")
-      .replace(/[_*#]+/g, " ")
-      .replace(/\s+/g, " ")
-      .trim(),
+    normalizeSpeechText(text),
   );
   utterance.lang = "en-US";
   utterance.rate = state.readingSpeed;
@@ -4663,6 +4825,8 @@ function updateSpeechUi() {
 }
 
 function stopSpeech() {
+  speechState.controller?.abort();
+  speechState.pauseWaiters.splice(0).forEach((resume) => resume());
   speechState.token += 1;
   speechState.mode = null;
   speechState.paragraphIndex = null;
@@ -4670,89 +4834,86 @@ function stopSpeech() {
   speechState.paused = false;
   speechState.queue = [];
   speechState.queueIndex = 0;
+  speechState.engine = null;
+  if (speechState.audio) {
+    speechState.audio.pause();
+    speechState.audio.removeAttribute("src");
+    speechState.audio = null;
+  }
+  speechState.controller = null;
   if ("speechSynthesis" in window) window.speechSynthesis.cancel();
   updateSpeechUi();
 }
 
 function speakParagraphAloud(index) {
-  const synth = "speechSynthesis" in window ? window.speechSynthesis : null;
-  if (!synth) {
-    showToast("这个浏览器暂时不支持英语朗读。", { icon: "i-volume" });
-    return;
-  }
   if (speechState.mode === "paragraph" && speechState.paragraphIndex === index) {
-    if (speechState.paused) {
-      synth.resume();
-      speechState.paused = false;
-    } else {
-      synth.pause();
-      speechState.paused = true;
-    }
-    updateSpeechUi();
+    setSpeechPaused(!speechState.paused);
     return;
   }
   stopSpeech();
   const text = state.paragraphs[index] || "";
   if (!text.trim()) return;
   const token = speechState.token;
+  const controller = new AbortController();
+  speechState.controller = controller;
   speechState.mode = "paragraph";
   speechState.paragraphIndex = index;
   speechState.text = text;
   speechState.paused = false;
-  const utterance = makeReadUtterance(text);
-  utterance.onend = () => {
+  playReadAloud(text, controller.signal).then((result) => {
     if (speechState.token !== token) return;
-    speechState.mode = null;
-    speechState.paragraphIndex = null;
-    speechState.text = "";
-    updateSpeechUi();
-  };
-  utterance.onerror = () => {
-    if (speechState.token !== token) return;
-    stopSpeech();
-    showToast("这一段暂时无法朗读。", { icon: "i-volume" });
-  };
-  synth.speak(utterance);
+    if (result === "ended") {
+      speechState.mode = null;
+      speechState.paragraphIndex = null;
+      speechState.text = "";
+      speechState.engine = null;
+      speechState.controller = null;
+      updateSpeechUi();
+      return;
+    }
+    if (result === "error") {
+      stopSpeech();
+      showToast("这一段暂时无法朗读，请检查网络或系统语音。", { icon: "i-volume", duration: 5000 });
+    }
+  });
   updateSpeechUi();
 }
 
-function speakNextFull(token) {
+async function speakNextFull(token) {
   if (speechState.token !== token || speechState.mode !== "full") return;
-  if (speechState.queueIndex >= speechState.queue.length) {
-    speechState.mode = null;
-    speechState.paragraphIndex = null;
+  while (speechState.token === token && speechState.mode === "full") {
+    if (speechState.queueIndex >= speechState.queue.length) {
+      speechState.mode = null;
+      speechState.paragraphIndex = null;
+      speechState.engine = null;
+      speechState.controller = null;
+      updateSpeechUi();
+      showToast("全文朗读结束。", { icon: "i-check" });
+      return;
+    }
+    const item = speechState.queue[speechState.queueIndex];
+    speechState.paragraphIndex = item.index;
+    const position = state.visibleParagraphs.indexOf(item.index);
+    if (position >= 0) {
+      const page = Math.floor(position / PAGE_SIZE);
+      if (page !== state.page) goToPage(page);
+    }
     updateSpeechUi();
-    showToast("全文朗读结束。", { icon: "i-check" });
+    const result = await playReadAloud(item.text, speechState.controller?.signal);
+    if (speechState.token !== token) return;
+    if (result === "ended") {
+      speechState.queueIndex += 1;
+      continue;
+    }
+    if (result === "error") {
+      stopSpeech();
+      showToast("全文朗读中断了，请检查网络或系统语音。", { icon: "i-volume", duration: 5000 });
+    }
     return;
   }
-  const item = speechState.queue[speechState.queueIndex];
-  speechState.paragraphIndex = item.index;
-  const position = state.visibleParagraphs.indexOf(item.index);
-  if (position >= 0) {
-    const page = Math.floor(position / PAGE_SIZE);
-    if (page !== state.page) goToPage(page);
-  }
-  const utterance = makeReadUtterance(item.text);
-  utterance.onend = () => {
-    if (speechState.token !== token) return;
-    speechState.queueIndex += 1;
-    speakNextFull(token);
-  };
-  utterance.onerror = () => {
-    if (speechState.token !== token) return;
-    stopSpeech();
-    showToast("全文朗读中断了。", { icon: "i-volume" });
-  };
-  window.speechSynthesis.speak(utterance);
-  updateSpeechUi();
 }
 
 function startFullSpeech() {
-  const synth = "speechSynthesis" in window ? window.speechSynthesis : null;
-  if (!synth) {
-    showToast("这个浏览器暂时不支持英语朗读。", { icon: "i-volume" });
-    return false;
-  }
   stopSpeech();
   const startIndex = state.visibleParagraphs[0] ?? 0;
   const position = Math.max(0, state.visibleParagraphs.indexOf(startIndex));
@@ -4770,21 +4931,14 @@ function startFullSpeech() {
   speechState.queue = queue;
   speechState.queueIndex = 0;
   speechState.paused = false;
+  speechState.controller = new AbortController();
   speakNextFull(speechState.token);
   return true;
 }
 
 function toggleFullSpeech() {
-  const synth = "speechSynthesis" in window ? window.speechSynthesis : null;
-  if (speechState.mode === "full" && synth) {
-    if (speechState.paused) {
-      synth.resume();
-      speechState.paused = false;
-    } else {
-      synth.pause();
-      speechState.paused = true;
-    }
-    updateSpeechUi();
+  if (speechState.mode === "full") {
+    setSpeechPaused(!speechState.paused);
     return;
   }
   startFullSpeech();
@@ -4818,6 +4972,7 @@ function setReadingSpeed(value) {
     speechState.queue = queue;
     speechState.queueIndex = queueIndex;
     speechState.paused = false;
+    speechState.controller = new AbortController();
     speakNextFull(speechState.token);
     showToast(`语速已调到 ${formatReadingSpeed(next)}，当前段落从头重读。`, {
       icon: "i-volume",
@@ -4874,7 +5029,7 @@ async function playAudio(url, text = "") {
     url,
     dictionaryAudioUrl(spokenText, 1),
     dictionaryAudioUrl(spokenText, 2),
-    `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q=${encodeURIComponent(spokenText)}`,
+    `https://translate.googleapis.com/translate_tts?ie=UTF-8&client=gtx&tl=en&q=${encodeURIComponent(spokenText)}`,
   ].filter(Boolean);
 
   for (const source of [...new Set(sources)]) {
