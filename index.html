@@ -8,7 +8,13 @@
       content="俄语口试 59 题中俄对照练习：逐句慢速朗读、逐词中文注释和俄语单词点读。"
     />
     <meta name="theme-color" content="#f3efe4" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="俄语口试" />
     <title>俄语口试练习 · 59 问</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="assets/icons/icon-192.png" sizes="192x192" />
+    <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png" />
     <link rel="preload" href="assets/fonts/PTSerif-Regular.ttf" as="font" type="font/ttf" crossorigin />
     <link rel="preload" href="assets/fonts/SourceSansPro-Regular.ttf" as="font" type="font/ttf" crossorigin />
     <link rel="stylesheet" href="styles.css" />
@@ -97,6 +103,9 @@
             <div>
               <strong>一句一听</strong>
               <span>点句首播放整句；点任意俄语单词单独跟读。</span>
+              <span class="offline-status is-caching" id="offline-status">
+                首次联网正在准备离线内容…
+              </span>
             </div>
             <span class="study-note-wave" aria-hidden="true">
               <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
@@ -132,7 +141,7 @@
         </section>
 
         <footer class="page-footer">
-          <p>整句使用本地音频；逐词点读优先使用系统俄语语音，未安装时自动在线发音。</p>
+          <p>首次联网完成后可断网使用；整句和全部单词发音均已离线缓存。</p>
           <p>题库来源：刘锦濠《俄语口试简单回答》中俄对照文档。</p>
         </footer>
       </main>
@@ -142,6 +151,7 @@
 
     <script src="data.js"></script>
     <script src="glossary.js"></script>
+    <script src="word-audio.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

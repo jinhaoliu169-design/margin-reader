@@ -11,6 +11,7 @@
 
   const questions = window.ORAL_EXAM_DATA || [];
   const lexicon = window.RUSSIAN_GLOSSARY || {};
+  const wordAudioSources = window.RUSSIAN_WORD_AUDIO || {};
   const categoryNav = document.getElementById("category-nav");
   const questionsRoot = document.getElementById("questions");
   const searchInput = document.getElementById("search");
@@ -359,17 +360,13 @@
     }
   }
 
-  function playWordOnline(button, word) {
+  function playWordAudio(button, source, options = {}) {
     if (activeWordButton !== button) {
-      return;
+      return false;
     }
     activeSpeech = null;
     button.classList.remove("is-loading");
-    const audio = new Audio(
-      `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=ru&q=${encodeURIComponent(
-        word,
-      )}`,
-    );
+    const audio = new Audio(source);
     audio.preload = "auto";
     audio.referrerPolicy = "no-referrer";
     audio.playbackRate = selectedRate;
@@ -385,30 +382,39 @@
       if (message) showToast(message);
     };
 
+    const fail = () => {
+      if (activeAudio !== audio) {
+        return;
+      }
+      activeAudio = null;
+      audio.pause();
+      audio.removeAttribute("src");
+      button.classList.remove("is-speaking");
+      button.classList.add("is-loading");
+      if (options.fallback) {
+        options.fallback();
+      } else {
+        resetSpeechUI();
+        showToast(options.errorMessage || "这个单词暂时无法发声，请检查网络");
+      }
+    };
+
     audio.addEventListener("ended", () => finish(), { once: true });
-    audio.addEventListener("error", () => finish("这个单词暂时无法发声，请检查网络"), {
-      once: true,
-    });
-    audio.play().catch(() => finish("这个单词暂时无法发声，请检查网络"));
+    audio.addEventListener("error", fail, { once: true });
+    audio.play().catch(fail);
+    return true;
   }
 
-  function speakWord(button) {
-    if (activeWordButton === button && (activeSpeech || activeAudio)) {
-      stopSpeech();
-      return;
-    }
+  function playWordOnline(button, word) {
+    const source =
+      `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=ru&q=` +
+      encodeURIComponent(word);
+    playWordAudio(button, source, {
+      errorMessage: "这个单词暂时无法发声，请检查网络",
+    });
+  }
 
-    stopSpeech();
-    const word = button.dataset.word || button.querySelector(".word-ru")?.textContent || "";
-    if (!word) {
-      return;
-    }
-
-    activeWordButton = button;
-    button.classList.add("is-loading");
-    button.setAttribute("aria-pressed", "true");
-    button.setAttribute("aria-label", "正在准备发音");
-
+  function playWordWithVoice(button, word) {
     if (!("speechSynthesis" in window) || !russianVoice) {
       playWordOnline(button, word);
       return;
@@ -458,6 +464,34 @@
     };
 
     window.speechSynthesis.speak(utterance);
+  }
+
+  function speakWord(button) {
+    if (activeWordButton === button && (activeSpeech || activeAudio)) {
+      stopSpeech();
+      return;
+    }
+
+    stopSpeech();
+    const word = button.dataset.word || button.querySelector(".word-ru")?.textContent || "";
+    if (!word) {
+      return;
+    }
+
+    activeWordButton = button;
+    button.classList.add("is-loading");
+    button.setAttribute("aria-pressed", "true");
+    button.setAttribute("aria-label", "正在准备发音");
+
+    const offlineSource = wordAudioSources[word.toLocaleLowerCase("ru")];
+    if (offlineSource) {
+      playWordAudio(button, offlineSource, {
+        fallback: () => playWordWithVoice(button, word),
+      });
+      return;
+    }
+
+    playWordWithVoice(button, word);
   }
 
   function playSentence(button, block) {
@@ -655,9 +689,38 @@
     }
   });
 
+  function registerOfflineSupport() {
+    const status = document.getElementById("offline-status");
+    if (!status) return;
+
+    const markReady = () => {
+      status.classList.remove("is-caching", "is-failed");
+      status.classList.add("is-ready");
+      status.textContent = "离线内容已准备好，可断网使用";
+    };
+
+    if (!("serviceWorker" in navigator) || location.protocol === "file:") {
+      status.classList.remove("is-caching");
+      status.classList.add("is-failed");
+      status.textContent = "请通过在线网址打开一次，以启用离线模式";
+      return;
+    }
+
+    navigator.serviceWorker
+      .register("service-worker.js")
+      .then(() => navigator.serviceWorker.ready)
+      .then(markReady)
+      .catch(() => {
+        status.classList.remove("is-caching");
+        status.classList.add("is-failed");
+        status.textContent = "离线缓存尚未完成，请保持联网后刷新";
+      });
+  }
+
   populateCategories();
   renderQuestions();
   updateVoiceStatus();
+  registerOfflineSupport();
   if ("speechSynthesis" in window) {
     window.speechSynthesis.addEventListener("voiceschanged", updateVoiceStatus);
   }

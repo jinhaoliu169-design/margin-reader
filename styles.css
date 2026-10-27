@@ -479,6 +479,43 @@ svg {
   line-height: 1.55;
 }
 
+.study-note .offline-status {
+  margin-top: 4px;
+  color: var(--ink-faint);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.study-note .offline-status.is-caching::before,
+.study-note .offline-status.is-ready::before,
+.study-note .offline-status.is-failed::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  background: #c48a2c;
+  border-radius: 50%;
+  vertical-align: 1px;
+}
+
+.study-note .offline-status.is-ready {
+  color: var(--teal);
+}
+
+.study-note .offline-status.is-ready::before {
+  background: var(--teal);
+}
+
+.study-note .offline-status.is-failed {
+  color: #9b3f31;
+}
+
+.study-note .offline-status.is-failed::before {
+  background: var(--pencil);
+}
+
 .study-note-wave {
   grid-column: 1 / -1;
   display: flex;
