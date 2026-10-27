@@ -1,17 +1,37 @@
-const CACHE_NAME = "russian-oral-offline-v2026-10-27-1";
-const MANIFEST_URL = new URL("precache-manifest.json", self.registration.scope);
+const CACHE_NAME = "russian-oral-offline-v2026-10-27-2";
 const OFFLINE_FALLBACK = new URL("index.html", self.registration.scope).href;
+const CORE_PATHS = [
+  "index.html",
+  "styles.css",
+  "app.js",
+  "data.js",
+  "glossary.js",
+  "word-audio.js",
+  "manifest.webmanifest",
+  "precache-manifest.json",
+  "assets/icons/icon-192.png",
+  "assets/icons/icon-512.png",
+  "assets/icons/apple-touch-icon.png",
+  "assets/fonts/PTSerif-Regular.ttf",
+  "assets/fonts/PTSerif-Bold.ttf",
+  "assets/fonts/SourceSansPro-Regular.ttf",
+  "assets/fonts/SourceSansPro-SemiBold.ttf",
+];
 
 async function cacheWithRetry(cache, url) {
   for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
     try {
-      const response = await fetch(url, { cache: "reload" });
+      const response = await fetch(url, { cache: "reload", signal: controller.signal });
       if (response.ok) {
         await cache.put(url, response);
         return true;
       }
     } catch {
       // Retry below.
+    } finally {
+      clearTimeout(timeout);
     }
     await new Promise((resolve) => setTimeout(resolve, attempt * 250));
   }
@@ -21,17 +41,12 @@ async function cacheWithRetry(cache, url) {
 self.addEventListener("install", (event) => {
   event.waitUntil(
     (async () => {
-      const response = await fetch(MANIFEST_URL, { cache: "no-store" });
-      const paths = await response.json();
       const cache = await caches.open(CACHE_NAME);
-      const urls = paths.map((path) => new URL(path, self.registration.scope).href);
-      for (let index = 0; index < urls.length; index += 8) {
-        await Promise.all(
-          urls
-            .slice(index, index + 8)
-            .map((url) => cacheWithRetry(cache, url)),
-        );
-      }
+      await Promise.all(
+        CORE_PATHS.map((path) =>
+          cacheWithRetry(cache, new URL(path, self.registration.scope).href),
+        ),
+      );
       await self.skipWaiting();
     })(),
   );

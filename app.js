@@ -692,6 +692,7 @@
   function registerOfflineSupport() {
     const status = document.getElementById("offline-status");
     if (!status) return;
+    const cacheName = "russian-oral-offline-v2026-10-27-2";
 
     const markReady = () => {
       status.classList.remove("is-caching", "is-failed");
@@ -706,10 +707,65 @@
       return;
     }
 
+    const fetchWithTimeout = async (url) => {
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 15000);
+      try {
+        return await fetch(url, { signal: controller.signal });
+      } finally {
+        window.clearTimeout(timeout);
+      }
+    };
+
+    const cacheOfflineAssets = async () => {
+      const manifestResponse = await fetchWithTimeout("precache-manifest.json");
+      if (!manifestResponse.ok) throw new Error("离线清单加载失败");
+      const paths = await manifestResponse.json();
+      const cache = await caches.open(cacheName);
+      let completed = 0;
+      let failed = [];
+
+      const cacheOne = async (path) => {
+        const url = new URL(path, document.baseURI).href;
+        if (await cache.match(url)) {
+          completed += 1;
+          return;
+        }
+        try {
+          const response = await fetchWithTimeout(url);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          await cache.put(url, response);
+          completed += 1;
+        } catch {
+          failed.push(path);
+        }
+        if (completed % 15 === 0 || completed === paths.length) {
+          status.textContent = `正在准备离线音频 ${completed}/${paths.length}`;
+        }
+      };
+
+      for (let index = 0; index < paths.length; index += 6) {
+        await Promise.all(paths.slice(index, index + 6).map(cacheOne));
+      }
+
+      if (failed.length) {
+        const retryPaths = failed;
+        failed = [];
+        for (const path of retryPaths) await cacheOne(path);
+      }
+      if (failed.length) {
+        status.classList.remove("is-caching");
+        status.classList.add("is-failed");
+        status.textContent = `还有 ${failed.length} 个音频未缓存，请联网后刷新`;
+        return;
+      }
+      markReady();
+    };
+
     navigator.serviceWorker
       .register("service-worker.js")
       .then(() => navigator.serviceWorker.ready)
-      .then(markReady)
+      .then(cacheOfflineAssets)
       .catch(() => {
         status.classList.remove("is-caching");
         status.classList.add("is-failed");
