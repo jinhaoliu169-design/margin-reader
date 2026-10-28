@@ -1,6 +1,6 @@
 const CACHE_NAME = "russian-oral-offline-v2026-10-27-2";
 const OFFLINE_FALLBACK = new URL("index.html", self.registration.scope).href;
-const UPDATE_FIRST_PATTERN = /\.(?:js|css|webmanifest)$/;
+const UPDATE_FIRST_PATTERN = /\.(?:js|css|json|webmanifest)$/;
 const CORE_PATHS = [
   "index.html",
   "styles.css",

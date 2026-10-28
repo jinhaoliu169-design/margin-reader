@@ -150,11 +150,14 @@
       .replaceAll("'", "&#039;");
   }
 
-  function sentenceBlock(sentence, kind, questionId, sentenceIndex) {
+  function sentenceBlock(sentence, kind, question, sentenceIndex) {
     const audioKind = kind === "question" ? "q" : "a";
-    const audioPath = `assets/audio/q${String(questionId).padStart(2, "0")}-${audioKind}${String(
-      sentenceIndex + 1,
-    ).padStart(2, "0")}.mp3`;
+    const customAudioFiles = kind === "answer" ? question.answerAudioFiles : null;
+    const audioPath =
+      customAudioFiles?.[sentenceIndex] ||
+      `assets/audio/q${String(question.id).padStart(2, "0")}-${audioKind}${String(
+        sentenceIndex + 1,
+      ).padStart(2, "0")}.mp3`;
 
     return `
       <div class="sentence-block" data-sentence="${escapeHtml(sentence)}" data-audio="${audioPath}">
@@ -222,13 +225,13 @@
           </div>
           <section class="question-prompt" aria-label="问题">
             ${questionSentences
-              .map((sentence, index) => sentenceBlock(sentence, "question", question.id, index))
+              .map((sentence, index) => sentenceBlock(sentence, "question", question, index))
               .join("")}
             <p class="translation">${escapeHtml(question.questionZh)}</p>
           </section>
           <div class="answer-label">回答</div>
           ${answerSentences
-            .map((sentence, index) => sentenceBlock(sentence, "answer", question.id, index))
+            .map((sentence, index) => sentenceBlock(sentence, "answer", question, index))
             .join("")}
           <p class="answer-translation">${escapeHtml(question.answerZh)}</p>
         </div>
