@@ -1,5 +1,6 @@
 const CACHE_NAME = "russian-oral-offline-v2026-10-27-2";
 const OFFLINE_FALLBACK = new URL("index.html", self.registration.scope).href;
+const UPDATE_FIRST_PATTERN = /\.(?:js|css|webmanifest)$/;
 const CORE_PATHS = [
   "index.html",
   "styles.css",
@@ -92,18 +93,28 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  const updateFirst = UPDATE_FIRST_PATTERN.test(url.pathname);
   event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
-      return fetch(request)
-        .then(async (response) => {
-          if (response.ok) {
-            const cache = await caches.open(CACHE_NAME);
-            await cache.put(request, response.clone());
-          }
-          return response;
-        })
-        .catch(() => Response.error());
-    }),
+    (updateFirst
+      ? fetch(request)
+          .then(async (response) => {
+            if (response.ok) {
+              const cache = await caches.open(CACHE_NAME);
+              await cache.put(request, response.clone());
+            }
+            return response;
+          })
+          .catch(() => caches.match(request))
+      : caches.match(request).then((cached) => cached || fetch(request))
+    )
+      .catch(() => Response.error())
+      .then(async (response) => {
+      if (!response) return Response.error();
+      if (!updateFirst && response.ok) {
+        const cache = await caches.open(CACHE_NAME);
+        await cache.put(request, response.clone());
+      }
+      return response;
+      }),
   );
 });

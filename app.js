@@ -12,6 +12,7 @@
   const questions = window.ORAL_EXAM_DATA || [];
   const lexicon = window.RUSSIAN_GLOSSARY || {};
   const wordAudioSources = window.RUSSIAN_WORD_AUDIO || {};
+  const QUESTION_STATE_KEY = "russian-oral-question-states-v1";
   const categoryNav = document.getElementById("category-nav");
   const questionsRoot = document.getElementById("questions");
   const searchInput = document.getElementById("search");
@@ -33,6 +34,33 @@
   let activeWordButton = null;
   let russianVoice = null;
   let toastTimer = null;
+
+  function loadQuestionStates() {
+    try {
+      const stored = JSON.parse(localStorage.getItem(QUESTION_STATE_KEY) || "{}");
+      return stored && typeof stored === "object" ? stored : {};
+    } catch {
+      return {};
+    }
+  }
+
+  let questionStates = loadQuestionStates();
+
+  function getQuestionState(id) {
+    return {
+      completed: Boolean(questionStates[id]?.completed),
+      duplicate: Boolean(questionStates[id]?.duplicate),
+    };
+  }
+
+  function setQuestionState(id, patch) {
+    questionStates[id] = { ...getQuestionState(id), ...patch };
+    try {
+      localStorage.setItem(QUESTION_STATE_KEY, JSON.stringify(questionStates));
+    } catch {
+      // The state still works for the current session.
+    }
+  }
 
   const splitSentences = (text) =>
     (text.match(/[^.!?…]+(?:[.!?…]+|$)/g) || [text])
@@ -149,11 +177,47 @@
   function questionMarkup(question) {
     const questionSentences = splitSentences(question.questionRu);
     const answerSentences = splitSentences(question.answerRu);
+    const itemState = getQuestionState(question.id);
+    const stateClass = [
+      itemState.completed ? "is-complete" : "",
+      itemState.duplicate ? "is-duplicate" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
 
     return `
-      <article class="question-item" id="question-${question.id}" data-question-id="${question.id}">
+      <article
+        class="question-item ${stateClass}"
+        id="question-${question.id}"
+        data-question-id="${question.id}"
+        tabindex="0"
+        aria-label="第 ${question.id} 题${itemState.duplicate ? "，已标记为重复" : ""}"
+      >
         <div class="question-number" aria-hidden="true">${String(question.id).padStart(2, "0")}</div>
         <div class="question-content">
+          <div class="question-actions" aria-label="第 ${question.id} 题状态">
+            <button
+              class="question-action complete-action ${itemState.completed ? "is-active" : ""}"
+              type="button"
+              data-question-action="complete"
+              aria-pressed="${itemState.completed}"
+              ${itemState.duplicate ? "disabled" : ""}
+              title="${itemState.completed ? "取消完成" : "标记为完成"}"
+            >
+              <svg aria-hidden="true"><use href="#icon-check"></use></svg>
+              <span>${itemState.completed ? "已完成" : "完成"}</span>
+            </button>
+            <button
+              class="question-action duplicate-action ${itemState.duplicate ? "is-active" : ""}"
+              type="button"
+              data-question-action="duplicate"
+              aria-pressed="${itemState.duplicate}"
+              title="${itemState.duplicate ? "恢复这道题" : "标记为重复，内容会变灰但保留"}"
+            >
+              <svg aria-hidden="true"><use href="#icon-${itemState.duplicate ? "restore" : "trash"}"></use></svg>
+              <span>${itemState.duplicate ? "恢复" : "删除"}</span>
+            </button>
+          </div>
           <section class="question-prompt" aria-label="问题">
             ${questionSentences
               .map((sentence, index) => sentenceBlock(sentence, "question", question.id, index))
@@ -168,6 +232,59 @@
         </div>
       </article>
     `;
+  }
+
+  function updateQuestionCard(card) {
+    const id = Number(card.dataset.questionId);
+    const itemState = getQuestionState(id);
+    card.classList.toggle("is-complete", itemState.completed);
+    card.classList.toggle("is-duplicate", itemState.duplicate);
+    card.setAttribute(
+      "aria-label",
+      `第 ${id} 题${itemState.duplicate ? "，已标记为重复" : ""}`,
+    );
+
+    const completeButton = card.querySelector('[data-question-action="complete"]');
+    if (completeButton) {
+      completeButton.classList.toggle("is-active", itemState.completed);
+      completeButton.setAttribute("aria-pressed", String(itemState.completed));
+      completeButton.disabled = itemState.duplicate;
+      completeButton.title = itemState.completed ? "取消完成" : "标记为完成";
+      completeButton.querySelector("span").textContent = itemState.completed ? "已完成" : "完成";
+    }
+
+    const duplicateButton = card.querySelector('[data-question-action="duplicate"]');
+    if (duplicateButton) {
+      duplicateButton.classList.toggle("is-active", itemState.duplicate);
+      duplicateButton.setAttribute("aria-pressed", String(itemState.duplicate));
+      duplicateButton.title = itemState.duplicate
+        ? "恢复这道题"
+        : "标记为重复，内容会变灰但保留";
+      duplicateButton.querySelector("use").setAttribute(
+        "href",
+        `#icon-${itemState.duplicate ? "restore" : "trash"}`,
+      );
+      duplicateButton.querySelector("span").textContent = itemState.duplicate ? "恢复" : "删除";
+    }
+  }
+
+  function toggleQuestionComplete(card) {
+    const id = Number(card.dataset.questionId);
+    const current = getQuestionState(id);
+    if (current.duplicate) return;
+    setQuestionState(id, { completed: !current.completed });
+    updateQuestionCard(card);
+    showToast(current.completed ? `第 ${id} 题已取消完成` : `第 ${id} 题已完成`);
+  }
+
+  function toggleQuestionDuplicate(card) {
+    const id = Number(card.dataset.questionId);
+    const current = getQuestionState(id);
+    const duplicate = !current.duplicate;
+    if (duplicate && card.contains(activeBlock)) stopSpeech();
+    setQuestionState(id, { duplicate, completed: duplicate ? false : current.completed });
+    updateQuestionCard(card);
+    showToast(duplicate ? `第 ${id} 题已标记为重复，内容仍保留` : `第 ${id} 题已恢复`);
   }
 
   function renderQuestions() {
@@ -633,6 +750,17 @@
   });
 
   questionsRoot.addEventListener("click", (event) => {
+    const questionAction = event.target.closest("[data-question-action]");
+    if (questionAction) {
+      const card = questionAction.closest(".question-item");
+      if (!card) return;
+      if (questionAction.dataset.questionAction === "complete") {
+        toggleQuestionComplete(card);
+      } else if (questionAction.dataset.questionAction === "duplicate") {
+        toggleQuestionDuplicate(card);
+      }
+      return;
+    }
     const wordButton = event.target.closest(".word");
     if (wordButton) {
       speakWord(wordButton);
@@ -678,6 +806,18 @@
         renderQuestions();
       } else if (activeAudio || activeSpeech) {
         stopSpeech();
+      }
+    }
+
+    if (
+      !isTyping &&
+      (event.key === "Delete" || event.key === "Backspace") &&
+      event.target === document.activeElement
+    ) {
+      const card = target.closest?.(".question-item");
+      if (card && event.target === card) {
+        event.preventDefault();
+        toggleQuestionDuplicate(card);
       }
     }
   });
