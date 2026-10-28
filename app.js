@@ -191,7 +191,9 @@
         id="question-${question.id}"
         data-question-id="${question.id}"
         tabindex="0"
-        aria-label="第 ${question.id} 题${itemState.duplicate ? "，已标记为重复" : ""}"
+        aria-label="第 ${question.id} 题${itemState.completed ? "，已完成" : ""}${
+          itemState.duplicate ? "，已标记为重复" : ""
+        }"
       >
         <div class="question-number" aria-hidden="true">${String(question.id).padStart(2, "0")}</div>
         <div class="question-content">
@@ -241,7 +243,9 @@
     card.classList.toggle("is-duplicate", itemState.duplicate);
     card.setAttribute(
       "aria-label",
-      `第 ${id} 题${itemState.duplicate ? "，已标记为重复" : ""}`,
+      `第 ${id} 题${itemState.completed ? "，已完成" : ""}${
+        itemState.duplicate ? "，已标记为重复" : ""
+      }`,
     );
 
     const completeButton = card.querySelector('[data-question-action="complete"]');
