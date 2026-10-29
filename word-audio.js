@@ -242,6 +242,7 @@ window.RUSSIAN_WORD_AUDIO = {
   "танцевать": "assets/word-audio/d1eefcf0c5c370e468ec.mp3",
   "танцую": "assets/word-audio/541bde67c27c89e5c15d.mp3",
   "теннис": "assets/word-audio/7f98f2fb5572820d8527.mp3",
+  "тоже": "assets/word-audio/135c15a7f9ab38ca334a.mp3",
   "только": "assets/word-audio/2fa3c425708497752c1e.mp3",
   "точно": "assets/word-audio/d74b6fa04e011f7f2375.mp3",
   "тридцать": "assets/word-audio/2c750ded3e0e3cce1f73.mp3",
