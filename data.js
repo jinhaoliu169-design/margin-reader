@@ -361,10 +361,10 @@ window.ORAL_EXAM_DATA = [
     "category": "Моя учёба",
     "questionRu": "Где вы хотите работать?",
     "questionZh": "你想在哪里工作？",
-    "answerRu": "Пока я не знаю точно, но хочу работать переводчиком или учителем.",
-    "answerZh": "我还不太确定，但想当翻译或老师。",
+    "answerRu": "Я хочу работать в Шэньчжэне, в Китае.",
+    "answerZh": "我想在中国深圳工作。",
     "answerAudioFiles": [
-      "assets/audio/q44-a01-20261029.mp3"
+      "assets/audio/q44-a01-20261029b.mp3"
     ]
   },
   {

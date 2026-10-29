@@ -285,6 +285,7 @@ window.RUSSIAN_WORD_AUDIO = {
   "что": "assets/word-audio/2e8900251d4b5227e0df.mp3",
   "широко": "assets/word-audio/214f46ef81ea0e638c2f.mp3",
   "школе": "assets/word-audio/cea1c62de26911da4c7f.mp3",
+  "шэньчжэне": "assets/word-audio/d3aead5903f6b3c1ed4b.mp3",
   "шэньчжэнь": "assets/word-audio/c5a24f7d0a74612a9fe4.mp3",
   "я": "assets/word-audio/4f566fb5e3df4276c125.mp3",
   "язык": "assets/word-audio/22307874c55dd88c4737.mp3",
