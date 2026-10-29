@@ -260,6 +260,7 @@ window.RUSSIAN_WORD_AUDIO = {
   "утром": "assets/word-audio/404b5125f09e9cd4f809.mp3",
   "учатся": "assets/word-audio/783bf0aecc7c963f3d91.mp3",
   "учите": "assets/word-audio/0fd0ae18716302e908df.mp3",
+  "учителем": "assets/word-audio/315e8c8da8d16cea846f.mp3",
   "учительница": "assets/word-audio/f56acae75edb14c49c8d.mp3",
   "учитесь": "assets/word-audio/91d11a7a9cfce8862c2f.mp3",
   "учится": "assets/word-audio/b02fa32b8cba4058f37c.mp3",
