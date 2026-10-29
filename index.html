@@ -123,6 +123,28 @@
           </div>
         </section>
 
+        <section class="completion-panel" aria-labelledby="completion-title">
+          <div class="completion-heading">
+            <div>
+              <strong id="completion-title">完成进度</strong>
+              <span id="completion-count" aria-live="polite">已完成 0 / 59</span>
+            </div>
+            <span id="completion-percent">0%</span>
+          </div>
+          <div
+            class="completion-track"
+            id="completion-progress"
+            role="progressbar"
+            aria-valuemin="0"
+            aria-valuemax="59"
+            aria-valuenow="0"
+            aria-valuetext="已完成 0 / 59"
+          >
+            <span class="completion-fill" id="completion-fill"></span>
+          </div>
+          <p id="completion-note">重复题不计入完成进度</p>
+        </section>
+
         <section class="filterbar" aria-label="查找题目">
           <label class="search-field">
             <svg aria-hidden="true"><use href="#icon-search"></use></svg>

@@ -557,6 +557,69 @@ svg {
   height: 9px;
 }
 
+.completion-panel {
+  margin: 20px 0 2px;
+  padding: 15px 18px 14px;
+  background: rgb(255 253 247 / 66%);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.completion-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.completion-heading div {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.completion-heading strong {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.completion-heading span {
+  color: var(--ink-faint);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.completion-heading > span:last-child {
+  color: var(--teal);
+  font-family: var(--display);
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.completion-track {
+  height: 9px;
+  overflow: hidden;
+  background: rgb(21 93 87 / 10%);
+  border-radius: 999px;
+}
+
+.completion-fill {
+  display: block;
+  width: var(--completion-value, 0%);
+  height: 100%;
+  background: linear-gradient(90deg, var(--teal), #2a8178);
+  border-radius: inherit;
+  transition: width 260ms ease;
+}
+
+.completion-panel p {
+  margin: 7px 0 0;
+  color: var(--ink-faint);
+  font-size: 10.5px;
+}
+
 .filterbar {
   display: flex;
   justify-content: space-between;

@@ -18,6 +18,11 @@
   const searchInput = document.getElementById("search");
   const clearSearchButton = document.getElementById("clear-search");
   const resultSummary = document.getElementById("result-summary");
+  const completionProgress = document.getElementById("completion-progress");
+  const completionFill = document.getElementById("completion-fill");
+  const completionCount = document.getElementById("completion-count");
+  const completionPercent = document.getElementById("completion-percent");
+  const completionNote = document.getElementById("completion-note");
   const emptyState = document.getElementById("empty-state");
   const resetFiltersButton = document.getElementById("reset-filters");
   const toast = document.getElementById("toast");
@@ -60,6 +65,25 @@
     } catch {
       // The state still works for the current session.
     }
+  }
+
+  function updateCompletionProgress() {
+    const activeQuestions = questions.filter((question) => !getQuestionState(question.id).duplicate);
+    const completed = activeQuestions.filter((question) => getQuestionState(question.id).completed).length;
+    const total = activeQuestions.length;
+    const duplicateCount = questions.length - total;
+    const percent = total ? Math.round((completed / total) * 100) : 0;
+    const summary = `已完成 ${completed} / ${total}`;
+
+    completionCount.textContent = summary;
+    completionPercent.textContent = `${percent}%`;
+    completionFill.style.setProperty("--completion-value", `${percent}%`);
+    completionProgress.setAttribute("aria-valuemax", String(total));
+    completionProgress.setAttribute("aria-valuenow", String(completed));
+    completionProgress.setAttribute("aria-valuetext", `${summary}，完成 ${percent}%`);
+    completionNote.textContent = duplicateCount
+      ? `已排除 ${duplicateCount} 道重复题，剩 ${total} 题计入进度`
+      : "重复题不计入完成进度";
   }
 
   const splitSentences = (text) =>
@@ -273,6 +297,7 @@
       );
       duplicateButton.querySelector("span").textContent = itemState.duplicate ? "恢复" : "删除";
     }
+    updateCompletionProgress();
   }
 
   function toggleQuestionComplete(card) {
@@ -922,6 +947,7 @@
 
   populateCategories();
   renderQuestions();
+  updateCompletionProgress();
   updateVoiceStatus();
   registerOfflineSupport();
   if ("speechSynthesis" in window) {
