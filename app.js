@@ -414,6 +414,27 @@
       button.setAttribute("aria-pressed", String(isActive));
     });
     renderQuestions();
+    scrollToCategoryStart(category);
+  }
+
+  function scrollToCategoryStart(category) {
+    const section =
+      category === "all"
+        ? questionsRoot.querySelector(".category-section")
+        : questionsRoot
+            .querySelector(`#category-${CATEGORY_META[category]?.order}`)
+            ?.closest(".category-section");
+    const firstQuestion = section?.querySelector(".question-item");
+    if (!firstQuestion) return;
+
+    window.requestAnimationFrame(() => {
+      const configuredOffset = Number.parseFloat(
+        window.getComputedStyle(document.documentElement).scrollPaddingTop,
+      );
+      const offset = Number.isFinite(configuredOffset) ? configuredOffset : 184;
+      const top = window.scrollY + firstQuestion.getBoundingClientRect().top - offset;
+      window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+    });
   }
 
   function setSpeed(rate) {
