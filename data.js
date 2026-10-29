@@ -473,8 +473,11 @@ window.ORAL_EXAM_DATA = [
     "category": "Свободное время и интересы",
     "questionRu": "Когда вы отдыхаете?",
     "questionZh": "你什么时候休息？",
-    "answerRu": "Я отдыхаю вечером и в выходные.",
-    "answerZh": "我晚上和周末休息。"
+    "answerRu": "Я отдыхаю в воскресенье.",
+    "answerZh": "我在周日休息。",
+    "answerAudioFiles": [
+      "assets/audio/q58-a01-20261029.mp3"
+    ]
   },
   {
     "id": 59,
